@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Professeurs - Dashboard IUT</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+
+    <!-- Navbar pro -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="/admin">Pointage IUT</a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="/admin">Étudiants & Groupes</a>
+                <a class="nav-link active" href="/admin/professeurs">Professeurs</a>
+                <a class="nav-link" href="/admin/config">Configuration & EDT</a>
+                <a class="nav-link" href="/admin/seances">Emploi du temps</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h2 class="mb-4">Gestion des Professeurs</h2>
+
+        <div class="row">
+            <!-- Formulaire d'ajout d'un prof -->
+            <div class="col-md-4 mb-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">Ajouter un Professeur</h5>
+                        <form action="/admin/professeurs/ajouter" method="post" class="row g-3">
+                            <div class="col-12">
+                                <label for="nom" class="form-label fw-bold small">Nom</label>
+                                <input type="text" class="form-control form-control-sm" id="nom" name="nom" placeholder="Ex: DUSSART" required>
+                            </div>
+                            <div class="col-12">
+                                <label for="prenom" class="form-label fw-bold small">Prénom</label>
+                                <input type="text" class="form-control form-control-sm" id="prenom" name="prenom" placeholder="Ex: Dominique" required>
+                            </div>
+                            <div class="col-12 mt-4">
+                                <button type="submit" class="btn btn-dark btn-sm w-100">Enregistrer le prof</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tableau de la liste des profs -->
+            <div class="col-md-8 mb-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">Liste des Professeurs enregistrés</h5>
+                        <table class="table table-striped table-hover align-middle">
+                            <thead>
+                                <tr>
+                                    <th># ID</th>
+                                    <th>Nom</th>
+                                    <th>Prénom</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for prof in professeurs %}
+                                <tr>
+                                    <td>{{ prof.id }}</td>
+                                    <td class="fw-bold">{{ prof.nom }}</td>
+                                    <td>{{ prof.prenom }}</td>
+                                    <td>
+                                        <form action="/admin/professeurs/{{ prof.id }}/supprimer" method="post" onsubmit="return confirm('Voulez-vous vraiment supprimer ce professeur ?');">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2">Supprimer</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted">Aucun professeur enregistré pour le moment.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

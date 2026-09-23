@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Gestion des Étudiants - Dashboard IUT</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+
+    <!-- Navbar pro -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="/admin">Pointage IUT</a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link active" href="/admin">Étudiants & Groupes</a>
+                <a class="nav-link" href="/admin/professeurs">Professeurs</a>
+                <a class="nav-link" href="/admin/seances">Emploi du temps</a>
+                <a class="nav-link" href="/admin/config">Configuration & EDT</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4 mb-5">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Gestion des Étudiants</h2>
+            <a href="/admin/etudiants/nouveau" class="btn btn-dark fw-bold">+ Ajouter un étudiant</a>
+        </div>
+
+        <!-- Import et Création de groupe -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">Importer les étudiants (Excel)</h5>
+                        <form action="/admin/upload" method="post" enctype="multipart/form-data" class="d-flex gap-2 align-items-center mt-3">
+                            <input type="file" name="file" class="form-control form-control-sm" required>
+                            <button type="submit" class="btn btn-primary btn-sm text-nowrap">Importer</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">Créer un Groupe</h5>
+                        <form action="/admin/groupes" method="post" class="d-flex gap-2 align-items-center mt-3">
+                            <input type="text" name="nom_groupe" placeholder="Ex: BUT3-TD3" class="form-control form-control-sm" required>
+                            <button type="submit" class="btn btn-success btn-sm text-nowrap">Ajouter</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filtre par groupe -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Liste des étudiants</h5>
+                <form method="get" action="/admin" class="d-flex gap-2 align-items-center">
+                    <label for="id_groupe" class="fw-bold small mb-0">Filtrer :</label>
+                    <select id="id_groupe" name="id_groupe" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="">Tous les groupes</option>
+                        {% for g in groupes %}
+                            <option value="{{ g.id }}" {% if selected_groupe == g.id %}selected{% endif %}>{{ g.nom_groupe }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+            </div>
+        </div>
+
+        <!-- Tableau des étudiants -->
+        <div class="card shadow-sm">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>N° Étudiant</th>
+                                <th>Nom</th>
+                                <th>Prénom</th>
+                                <th>Groupes</th>
+                                <th>Badge NFC</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for e in etudiants %}
+                            <tr>
+                                <td class="fw-bold">{{ e.numero_etudiant }}</td>
+                                <td>{{ e.nom }}</td>
+                                <td class="text-capitalize">{{ e.prenom }}</td>
+                                <td>
+                                    {% if e.groupes %}
+                                        <div class="d-flex flex-wrap gap-1">
+                                            {% for g in e.groupes %}
+                                                {% if 'BUT1' in g.nom_groupe %}
+                                                    <span class="badge bg-danger">{{ g.nom_groupe }}</span>
+                                                {% elif 'BUT2' in g.nom_groupe %}
+                                                    <span class="badge bg-warning text-dark">{{ g.nom_groupe }}</span>
+                                                {% elif 'BUT3' in g.nom_groupe %}
+                                                    <span class="badge bg-success">{{ g.nom_groupe }}</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">{{ g.nom_groupe }}</span>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </div>
+                                    {% else %}
+                                        <span class="text-muted small">Aucun groupe</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <!-- Mini-formulaire pour lier la carte NFC directement dans le tableau -->
+                                    <form action="/admin/etudiants/{{ e.id }}/carte" method="post" class="d-flex gap-1 align-items-center">
+                                        <input type="text" name="nfc_uid" value="{% if e.carte %}{{ e.carte.nfc_uid }}{% endif %}" placeholder="Scanner..." class="form-control form-control-sm" style="width: 130px;">
+                                        <button type="submit" class="btn btn-sm btn-outline-success py-0 px-2" title="Enregistrer la carte">✓</button>
+                                    </form>
+                                </td>
+                                <td class="text-end">
+                                    <a href="/admin/etudiants/{{ e.id }}/modifier" class="btn btn-sm btn-outline-primary py-0 px-2">Modifier</a>
+                                    <form action="/admin/etudiants/{{ e.id }}/supprimer" method="post" class="d-inline" onsubmit="return confirm('Voulez-vous vraiment supprimer cet étudiant ?');">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2">Supprimer</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center py-4 text-muted">Aucun étudiant trouvé.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

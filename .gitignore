@@ -1,0 +1,22 @@
+# Environnement virtuel
+venv/
+env/
+ENV/
+
+# Cache Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# IDE & Éditeurs (VS Code / PyCharm)
+.vscode/
+.idea/
+
+# Fichiers système (Mac / Windows)
+.DS_Store
+Thumbs.db
+
+# Fichiers de configuration sensible / Secrets
+.env
