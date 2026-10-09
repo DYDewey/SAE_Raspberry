@@ -37,6 +37,9 @@ class ProfesseurDB(Base):
     id = Column(Integer, primary_key=True, index=True)
     nom = Column(String(64), nullable=False)
     prenom = Column(String(64), nullable=False)
+    # Compte de connexion (facultatif) : le prof voit et valide ses propres cours
+    identifiant = Column(String(64), unique=True, nullable=True)
+    mot_de_passe = Column(String(255), nullable=True)          # haché (services/comptes.py)
 
 class EtudiantDB(Base):
     __tablename__ = "etudiants"
@@ -71,6 +74,8 @@ class BoitierDB(Base):
     # Boîtier "SAE" : un bip est rattaché à la séance de SAE du groupe de l'étudiant
     # à cette heure-là, quels que soient la salle et le professeur
     mode_sae = Column(Boolean, nullable=False, default=False, server_default=text("false"))
+    # Boîtier d'accueil : le seul proposé pour enregistrer les cartes ("Scanner la carte")
+    accueil = Column(Boolean, nullable=False, default=False, server_default=text("false"))
 
     professeur = relationship("ProfesseurDB")
     salle = relationship("SalleDB")
@@ -83,6 +88,15 @@ class PointageDB(Base):
     timestamp = Column(DateTime, nullable=False, index=True)   # heure de Paris
     id_seance = Column(Integer, nullable=True, index=True)
     recu_le = Column(DateTime, nullable=True)                  # heure de réception serveur
+
+class PresenceManuelleDB(Base):
+    """Statut saisi à la main par le prof (boîtier en panne, oubli de carte...).
+    Il remplace le statut calculé à partir des bips pour cet étudiant et ce cours."""
+    __tablename__ = "presences_manuelles"
+    id_seance = Column(Integer, primary_key=True)              # 1er créneau du bloc
+    id_etudiant = Column(Integer, ForeignKey("etudiants.id", ondelete="CASCADE"), primary_key=True)
+    statut = Column(String(16), nullable=False)                # Présent / En retard / Absent
+    modifie_le = Column(DateTime, nullable=True)
 
 class SeanceDB(Base):
     __tablename__ = "seances"
@@ -105,6 +119,21 @@ def migrer_schema(engine):
     if insp.has_table("boitiers") and "mode_sae" not in {c["name"] for c in insp.get_columns("boitiers")}:
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE boitiers ADD COLUMN mode_sae BOOLEAN NOT NULL DEFAULT false"))
+    if insp.has_table("boitiers") and "accueil" not in {c["name"] for c in insp.get_columns("boitiers")}:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE boitiers ADD COLUMN accueil BOOLEAN NOT NULL DEFAULT false"))
+            # Boîtiers existants nommés "...ACCUEIL" / "...ACCEUIL" : cochés d'office
+            conn.execute(text("UPDATE boitiers SET accueil = true "
+                              "WHERE upper(device_id) LIKE '%ACCUEIL%' OR upper(device_id) LIKE '%ACCEUIL%'"))
+    if insp.has_table("professeurs"):
+        colonnes = {c["name"] for c in insp.get_columns("professeurs")}
+        with engine.begin() as conn:
+            if "identifiant" not in colonnes:
+                conn.execute(text("ALTER TABLE professeurs ADD COLUMN identifiant VARCHAR(64)"))
+                conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_professeurs_identifiant "
+                                  "ON professeurs (identifiant)"))
+            if "mot_de_passe" not in colonnes:
+                conn.execute(text("ALTER TABLE professeurs ADD COLUMN mot_de_passe VARCHAR(255)"))
     if engine.dialect.name != "postgresql":
         return
     with engine.begin() as conn:

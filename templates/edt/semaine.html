@@ -10,7 +10,7 @@
 <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
     <div>
         <h1 class="h3 titre-page">
-            {% if groupe_choisi %}{{ groupe_choisi.nom_groupe }}{% else %}Emploi du temps{% endif %}
+            {% if est_prof %}Mes cours{% elif groupe_choisi %}{{ groupe_choisi.nom_groupe }}{% else %}Emploi du temps{% endif %}
         </h1>
         <div class="sous-titre">
             Semaine {{ numero_semaine }} · du {{ lundi.strftime('%d/%m') }} au {{ dimanche.strftime('%d/%m/%Y') }}
@@ -23,15 +23,20 @@
             <a class="btn btn-outline-secondary" href="?{{ filtres[1:] }}">Aujourd'hui</a>
             <a class="btn btn-outline-secondary" href="?semaine={{ semaine_suiv }}{{ filtres }}" title="Semaine suivante"><i class="bi bi-chevron-right"></i></a>
         </div>
+        {% if not est_prof %}
         <form action="/admin/edt/synchroniser" method="post" class="m-0">
             <button class="btn btn-primary bg-iut border-0" type="submit" onclick="this.disabled=true;this.innerHTML='<span class=\'spinner-border spinner-border-sm me-1\'></span>Synchronisation…';this.form.submit()">
                 <i class="bi bi-arrow-repeat me-1"></i>Synchroniser l'EDT
             </button>
         </form>
+        {% endif %}
     </div>
 </div>
 
-<!-- Filtres -->
+<!-- Filtres (un prof connecté ne voit que ses cours : pas de filtres) -->
+{% if est_prof %}
+<div class="alert alert-light border small py-2"><i class="bi bi-info-circle me-1"></i>Cliquez sur un de vos cours pour voir l'émargement et valider un étudiant à la main.</div>
+{% else %}
 <form class="card mb-3" method="get">
     <input type="hidden" name="semaine" value="{{ lundi.strftime('%Y-%m-%d') }}">
     <div class="card-body py-2">
@@ -76,8 +81,9 @@
         {% endif %}
     </div>
 </form>
+{% endif %}
 
-{% if not groupe_choisi and nb_cours > 25 %}
+{% if not est_prof and not groupe_choisi and nb_cours > 25 %}
 <div class="alert alert-info py-2 small"><i class="bi bi-info-circle me-1"></i>Choisissez une classe pour un affichage plus lisible.</div>
 {% endif %}
 

@@ -86,7 +86,17 @@ class Signaux:
         self._signal(config.PIN_LED_VERTE, 1, 0.1)
 
     def deja_vu(self):
-        self._signal(config.PIN_LED_BLEUE, 2, 0.05, duree_led=0.5)
+        """Badge déjà pris en compte : la LED bleue clignote vite 3 fois + 1 bip très court.
+        (Avant : bleue fixe + 2 bips, impossible à distinguer de l'erreur rouge, la bleue
+        étant déjà allumée quand le boîtier est en ligne.)"""
+        self.occupe.set()
+        self._bips(1, 0.04)
+        for _ in range(3):
+            self._sortie(config.PIN_LED_BLEUE, False)
+            time.sleep(0.12)
+            self._sortie(config.PIN_LED_BLEUE, True)
+            time.sleep(0.12)
+        self.occupe.clear()
 
     def enrolement(self):
         self._signal(config.PIN_LED_BLEUE, 1, 0.1, duree_led=1.5)
@@ -118,7 +128,7 @@ class SignauxSimules(Signaux):
         print("[LED] VERTE + bip court : badge enregistré")
 
     def deja_vu(self):
-        print("[LED] bleue + 2 bips : badge déjà pris en compte")
+        print("[LED] bleue clignote 3 fois + bip très court : badge déjà pris en compte")
 
     def enrolement(self):
         print("[LED] BLEUE 1,5 s + bip : nouvelle carte enregistrée (Scanner la carte)")

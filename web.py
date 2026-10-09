@@ -5,6 +5,7 @@ from fastapi import Request
 from fastapi.templating import Jinja2Templates
 
 import config
+from services.groupes import groupe_affiche
 from services.temps import jour_fr
 
 templates = Jinja2Templates(directory="templates")
@@ -39,6 +40,8 @@ def promo_de(nom_groupe: str) -> str:
 
 
 templates.env.filters["promo"] = promo_de     # {{ "BUT2-TD1" | promo }} -> "BUT 2"
+# {{ etudiant.groupes | groupe_affiche }} -> "BUT3-TD3-PB" (voir services/groupes.py)
+templates.env.filters["groupe_affiche"] = lambda groupes: groupe_affiche([g.nom_groupe for g in groupes])
 
 
 def groupes_par_promo(groupes):
@@ -64,6 +67,7 @@ def render(request: Request, nom: str, actif: str = "", **contexte):
         actif=actif,
         messages=request.session.pop("flash", []),
         admin=request.session.get("admin"),
+        est_prof=est_prof(request),
         mot_de_passe_par_defaut=config.MOT_DE_PASSE_PAR_DEFAUT,
     )
     return templates.TemplateResponse(request=request, name=nom, context=contexte)
@@ -76,9 +80,29 @@ class NonConnecte(Exception):
         self.suivant = suivant
 
 
-def admin_requis(request: Request):
-    """Dépendance FastAPI : à mettre sur tous les routers de l'interface admin."""
+class PasAutorise(Exception):
+    """Levée quand un prof demande une page réservée à l'administrateur."""
+
+
+def est_prof(request: Request) -> bool:
+    return request.session.get("id_prof") is not None
+
+
+def prof_connecte(request: Request):
+    """Id du prof connecté, ou None pour l'administrateur."""
+    return request.session.get("id_prof")
+
+
+def connexion_requise(request: Request):
+    """Dépendance FastAPI : pages accessibles à l'administrateur ET aux profs."""
     if not request.session.get("admin"):
         raise NonConnecte(request.url.path)
     # Modifier la session la fait ré-signer : le délai d'inactivité repart de zéro
     request.session["actif"] = int(time.time())
+
+
+def admin_requis(request: Request):
+    """Dépendance FastAPI : pages réservées à l'administrateur."""
+    connexion_requise(request)
+    if est_prof(request):
+        raise PasAutorise()

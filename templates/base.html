@@ -14,7 +14,7 @@
 {% if admin %}
 <nav class="navbar navbar-expand-lg navbar-dark bg-iut sticky-top shadow-sm">
     <div class="container-fluid px-lg-4">
-        <a class="navbar-brand d-flex align-items-center gap-2" href="/admin">
+        <a class="navbar-brand d-flex align-items-center gap-2" href="{{ '/admin/edt' if est_prof else '/admin' }}">
             <span class="logo-badge"><i class="bi bi-broadcast-pin"></i></span>
             <span class="fw-semibold">Pointage IUT</span>
         </a>
@@ -23,6 +23,9 @@
         </button>
         <div class="collapse navbar-collapse" id="menu">
             <ul class="navbar-nav me-auto">
+                {% if est_prof %}
+                {% set liens = [("edt", "/admin/edt", "calendar-week", "Mes cours")] %}
+                {% else %}
                 {% set liens = [
                     ("accueil", "/admin", "speedometer2", "Tableau de bord"),
                     ("edt", "/admin/edt", "calendar-week", "Emploi du temps"),
@@ -31,6 +34,7 @@
                     ("professeurs", "/admin/professeurs", "person-badge", "Professeurs"),
                     ("configuration", "/admin/configuration", "gear", "Configuration"),
                 ] %}
+                {% endif %}
                 {% for cle, url, icone, texte in liens %}
                 <li class="nav-item">
                     <a class="nav-link {% if actif == cle %}active{% endif %}" href="{{ url }}">
@@ -46,7 +50,7 @@
         </div>
     </div>
 </nav>
-{% if mot_de_passe_par_defaut %}
+{% if mot_de_passe_par_defaut and not est_prof %}
 <div class="alert alert-warning rounded-0 mb-0 py-2 small text-center">
     <i class="bi bi-exclamation-triangle me-1"></i>
     Mot de passe par défaut (admin / admin) : définissez <code>ADMIN_USER</code>, <code>ADMIN_PASSWORD</code> et <code>SECRET_KEY</code> dans le fichier <code>.env</code>.
@@ -89,6 +93,23 @@
             }
         } catch (e) {}                                   // serveur momentanément injoignable
     }, 5 * 60 * 1000);
+
+    // Émargement : le prof valide un étudiant à la main (menu sur le statut)
+    document.addEventListener('click', async e => {
+        const bouton = e.target.closest('[data-manuel]');
+        if (!bouton) return;
+        const corps = new URLSearchParams({etudiant: bouton.dataset.etudiant, statut: bouton.dataset.manuel});
+        try {
+            const r = await fetch(`/admin/seances/${bouton.dataset.seance}/manuel`, {method: 'POST', body: corps});
+            if (r.status === 401) { window.location.href = '/login'; return; }
+            if (!r.ok) throw new Error(r.status);
+        } catch (err) {
+            alert("Le statut n'a pas pu être enregistré.");
+            return;
+        }
+        if (bouton.closest('#panneau-contenu') && window.rechargerPanneau) window.rechargerPanneau();
+        else window.location.reload();
+    });
     {% endif %}
 </script>
 {% block scripts %}{% endblock %}

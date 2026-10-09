@@ -22,7 +22,7 @@ import config
 import models
 from database import engine
 from routers import api, auth, configuration, edt, etudiants, professeurs, tableau_de_bord
-from web import NonConnecte
+from web import NonConnecte, PasAutorise, flash
 
 # Crée les tables manquantes, puis met à jour les tables qui existaient déjà
 models.Base.metadata.create_all(bind=engine)
@@ -53,6 +53,16 @@ def rediriger_vers_login(request, exc: NonConnecte):
     if "text/html" not in request.headers.get("accept", ""):
         return JSONResponse({"statut": "deconnecte"}, status_code=401)
     return RedirectResponse(url=f"/login?suivant={quote(exc.suivant)}", status_code=303)
+
+
+@app.exception_handler(PasAutorise)
+def reserve_admin(request, exc: PasAutorise):
+    """Un prof n'a accès qu'à l'emploi du temps et à l'émargement de ses cours."""
+    if "text/html" not in request.headers.get("accept", ""):
+        return JSONResponse({"statut": "interdit"}, status_code=403)
+    if request.url.path not in ("/admin", "/admin/"):
+        flash(request, "Cette page est réservée à l'administrateur.", "warning")
+    return RedirectResponse(url="/admin/edt", status_code=303)
 
 
 @app.get("/", include_in_schema=False)

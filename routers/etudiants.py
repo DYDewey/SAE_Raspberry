@@ -14,7 +14,7 @@ from database import get_db
 from services import scan
 from services.etudiants import associer_carte, importer_etudiants
 from services.export import XLSX, excel_avec_entete
-from services.presences import bilan_etudiants, historique_etudiant, taux
+from services.presences import bilan_etudiants, etudiants_par_groupe, historique_etudiant, taux
 from services.temps import debut_annee_universitaire, lire_date, maintenant_paris
 from web import admin_requis, flash, groupes_par_promo, render
 
@@ -23,6 +23,13 @@ router = APIRouter(prefix="/admin", dependencies=[Depends(admin_requis)], tags=[
 
 def _groupes(db):
     return db.query(models.GroupeDB).order_by(models.GroupeDB.nom_groupe).all()
+
+
+def _filtre_groupe(db, requete, groupe: int):
+    """Mêmes étudiants que l'émargement d'un cours de ce groupe : BUT3-TD3-PB = la moitié
+    PB du TD3, BUT3-TD3 = tout le TD3, BUT3 = toute la promo (voir services/groupes.py)."""
+    ids = [e.id for e in etudiants_par_groupe(db, [groupe]).get(groupe, [])]
+    return requete.filter(models.EtudiantDB.id.in_(ids))
 
 
 def _periode(du: str, au: str):
@@ -41,7 +48,7 @@ def liste_etudiants(request: Request, groupe: int = None, q: str = "", sans_cart
                     db: Session = Depends(get_db)):
     requete = db.query(models.EtudiantDB)
     if groupe:
-        requete = requete.filter(models.EtudiantDB.groupes.any(models.GroupeDB.id == groupe))
+        requete = _filtre_groupe(db, requete, groupe)
     if q.strip():
         motif = f"%{q.strip()}%"
         requete = requete.filter(or_(models.EtudiantDB.nom.ilike(motif), models.EtudiantDB.prenom.ilike(motif),
@@ -86,10 +93,11 @@ def modifier_carte(etudiant_id: int, request: Request, nfc_uid: str = Form(""), 
 # ==========================================
 
 def _contexte_scan(request: Request, db: Session) -> dict:
-    """Boîtiers proposés pour le scan. Par défaut : le dernier utilisé, sinon un
-    boîtier sans professeur (boîtier du secrétariat), sinon le premier."""
+    """Boîtiers proposés pour le scan : seulement ceux cochés "Accueil" dans Configuration.
+    Par défaut : le dernier utilisé, sinon le premier en ligne."""
     seuil = maintenant_paris() - timedelta(minutes=config.BOITIER_EN_LIGNE_MIN)
-    boitiers = db.query(models.BoitierDB).order_by(models.BoitierDB.device_id).all()
+    boitiers = [b for b in db.query(models.BoitierDB).order_by(models.BoitierDB.device_id).all()
+                if scan.est_accueil(b)]
     ids = [b.device_id for b in boitiers]
     en_ligne = {b.device_id for b in boitiers if b.derniere_synchro and b.derniere_synchro >= seuil}
     choisi = request.session.get("scan_boitier")
@@ -109,8 +117,12 @@ def _contexte_scan(request: Request, db: Session) -> dict:
 @router.post("/scan/demarrer")
 def scan_demarrer(request: Request, device_id: str = Form(...), etudiant_id: int = Form(0),
                   db: Session = Depends(get_db)):
-    if not db.get(models.BoitierDB, device_id):
+    boitier = db.get(models.BoitierDB, device_id)
+    if not boitier:
         return JSONResponse({"statut": "erreur", "message": "Boîtier inconnu"}, status_code=400)
+    if not scan.est_accueil(boitier):
+        return JSONResponse({"statut": "erreur", "message": f"{device_id} n'est pas un boîtier d'accueil : cochez "
+                             "« Accueil » dans Configuration pour y enregistrer des cartes."}, status_code=400)
     request.session["scan_boitier"] = device_id
     scan.demarrer(device_id, etudiant_id or None)
     return JSONResponse({"statut": "attente", "restant": scan.DUREE_ATTENTE_S})
@@ -252,7 +264,7 @@ def _bilan(db, groupe, du, au):
     debut, fin = _periode(du, au)
     requete = db.query(models.EtudiantDB)
     if groupe:
-        requete = requete.filter(models.EtudiantDB.groupes.any(models.GroupeDB.id == groupe))
+        requete = _filtre_groupe(db, requete, groupe)
     bilan = bilan_etudiants(db, requete.all(), debut, fin)
     bilan.sort(key=lambda b: (-b["absent"], -b["retard"], b["etudiant"].nom))
     return bilan, debut, fin

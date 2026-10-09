@@ -3,8 +3,8 @@ import zlib
 from datetime import timedelta
 
 import pandas as pd
-from fastapi import APIRouter, Depends, Request
-from fastapi.responses import RedirectResponse, StreamingResponse
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi.responses import RedirectResponse, Response, StreamingResponse
 from sqlalchemy.orm import Session
 
 import models
@@ -13,11 +13,13 @@ from database import get_db
 from services import ical
 from services.export import XLSX, excel_avec_entete
 from services.groupes import sont_lies
-from services.presences import bloc_de_seance, construire_blocs, presences_bloc, resumes_blocs, taux
+from services.presences import (ABSENT, PRESENT, RETARD, bloc_de_seance, construire_blocs, presences_bloc,
+                                resumes_blocs, taux)
 from services.temps import debut_semaine, jour_fr, lire_date, maintenant_paris
-from web import admin_requis, flash, groupes_par_promo, render, templates
+from web import PasAutorise, admin_requis, connexion_requise, flash, groupes_par_promo, prof_connecte, render, templates
 
-router = APIRouter(prefix="/admin", dependencies=[Depends(admin_requis)], tags=["Emploi du temps"])
+# Accessible aux profs : ils ne voient que leurs cours (voir prof_connecte)
+router = APIRouter(prefix="/admin", dependencies=[Depends(connexion_requise)], tags=["Emploi du temps"])
 
 PX_PAR_MINUTE = 1.1          # hauteur d'une minute dans la grille (1h = 66 px)
 COULEURS = [                 # (fond, bordure) - une couleur stable par matière
@@ -90,6 +92,9 @@ def emploi_du_temps(request: Request, semaine: str = None, groupe: int = None, p
                     salle: int = None, db: Session = Depends(get_db)):
     maintenant = maintenant_paris()
     lundi = debut_semaine(lire_date(semaine, maintenant))
+    if prof_connecte(request):
+        # Un prof connecté ne voit que ses propres cours, toutes classes confondues
+        prof, groupe, salle = prof_connecte(request), 0, None
 
     # La classe choisie est mémorisée pour les prochaines visites (0 = toutes)
     if groupe is None:
@@ -177,7 +182,7 @@ def emploi_du_temps(request: Request, semaine: str = None, groupe: int = None, p
     )
 
 
-@router.post("/edt/synchroniser")
+@router.post("/edt/synchroniser", dependencies=[Depends(admin_requis)])
 def synchroniser_edt(request: Request, db: Session = Depends(get_db)):
     try:
         r = ical.telecharger_et_importer(db)
@@ -193,10 +198,13 @@ def synchroniser_edt(request: Request, db: Session = Depends(get_db)):
 # Émargement d'un cours
 # ==========================================
 
-def _contexte_emargement(db: Session, seance_id: int):
+def _contexte_emargement(db: Session, seance_id: int, id_prof=None):
+    """id_prof : prof connecté (None pour l'admin), qui n'a accès qu'à ses propres cours."""
     seance = db.get(models.SeanceDB, seance_id)
     if not seance:
         return None
+    if id_prof is not None and seance.id_prof != id_prof:
+        raise PasAutorise()
     bloc = bloc_de_seance(db, seance)
     liste, hors_liste, compteur = presences_bloc(db, bloc)
     return {
@@ -215,15 +223,15 @@ def ancienne_page_seances():
     return RedirectResponse(url="/admin/edt", status_code=303)
 
 
-def _contextes(db: Session, seance_id: int, avec: str):
+def _contextes(db: Session, seance_id: int, avec: str, id_prof=None):
     """Émargement du cours demandé + des autres groupes du même CM (?avec=12,13)."""
     ids = [seance_id] + [int(i) for i in (avec or "").split(",") if i.strip().isdigit() and int(i) != seance_id]
-    return [c for c in (_contexte_emargement(db, i) for i in ids) if c]
+    return [c for c in (_contexte_emargement(db, i, id_prof) for i in ids) if c]
 
 
 @router.get("/seances/{seance_id}")
 def page_emargement(seance_id: int, request: Request, avec: str = "", db: Session = Depends(get_db)):
-    contextes = _contextes(db, seance_id, avec)
+    contextes = _contextes(db, seance_id, avec, prof_connecte(request))
     if not contextes:
         flash(request, "Ce cours n'existe plus (l'emploi du temps a peut-être changé).", "warning")
         return RedirectResponse(url="/admin/edt", status_code=303)
@@ -234,16 +242,41 @@ def page_emargement(seance_id: int, request: Request, avec: str = "", db: Sessio
 def panneau_emargement(seance_id: int, request: Request, avec: str = "", db: Session = Depends(get_db)):
     """Même contenu que la page, sans le menu : chargé dans le panneau latéral de l'EDT."""
     # TemplateResponse directement (et pas render) pour ne pas consommer les messages flash
-    contextes = _contextes(db, seance_id, avec)
+    contextes = _contextes(db, seance_id, avec, prof_connecte(request))
     if not contextes:
         return templates.TemplateResponse(request=request, name="edt/_introuvable.html")
     return templates.TemplateResponse(request=request, name="edt/_emargements.html",
-                                      context={"panneau": True, "contextes": contextes, "avec": avec})
+                                      context={"panneau": True, "contextes": contextes, "avec": avec,
+                                               "est_prof": prof_connecte(request) is not None})
+
+
+@router.post("/seances/{seance_id}/manuel")
+def statut_manuel(seance_id: int, request: Request, etudiant: int = Form(...), statut: str = Form(""),
+                  db: Session = Depends(get_db)):
+    """Le prof valide un étudiant à la main (boîtier en panne, carte oubliée...).
+    statut vide : on revient au statut calculé à partir des bips."""
+    if statut not in (PRESENT, RETARD, ABSENT, ""):
+        raise HTTPException(status_code=400, detail="Statut inconnu")
+    seance = db.get(models.SeanceDB, seance_id)
+    if not seance or not db.get(models.EtudiantDB, etudiant):
+        raise HTTPException(status_code=404, detail="Cours ou étudiant introuvable")
+    if prof_connecte(request) is not None and seance.id_prof != prof_connecte(request):
+        raise PasAutorise()
+    bloc = bloc_de_seance(db, seance)
+    db.query(models.PresenceManuelleDB).filter(
+        models.PresenceManuelleDB.id_etudiant == etudiant,
+        models.PresenceManuelleDB.id_seance.in_(bloc.ids),
+    ).delete(synchronize_session=False)
+    if statut:
+        db.add(models.PresenceManuelleDB(id_seance=bloc.id, id_etudiant=etudiant, statut=statut,
+                                         modifie_le=maintenant_paris()))
+    db.commit()
+    return Response(status_code=204)
 
 
 @router.get("/seances/{seance_id}/export")
-def export_emargement(seance_id: int, db: Session = Depends(get_db)):
-    ctx = _contexte_emargement(db, seance_id)
+def export_emargement(seance_id: int, request: Request, db: Session = Depends(get_db)):
+    ctx = _contexte_emargement(db, seance_id, prof_connecte(request))
     if not ctx:
         return RedirectResponse(url="/admin/edt", status_code=303)
     bloc, c = ctx["bloc"], ctx["compteur"]
@@ -255,7 +288,7 @@ def export_emargement(seance_id: int, db: Session = Depends(get_db)):
         "Badge NFC": p["badge"] or "Non attribué",
         "Arrivée": p["arrivee"].strftime("%H:%M") if p["arrivee"] else "",
         "Sortie": p["sortie"].strftime("%H:%M") if p["sortie"] else "",
-        "Statut": p["statut"],
+        "Statut": p["statut"] + (" (validé à la main)" if p["manuel"] else ""),
     } for p in ctx["liste"]], columns=["N° Étudiant", "Nom", "Prénom", "Badge NFC", "Arrivée", "Sortie", "Statut"])
 
     entete = [

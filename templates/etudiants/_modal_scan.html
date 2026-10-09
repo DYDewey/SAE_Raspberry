@@ -8,10 +8,10 @@
                     <select class="form-select" id="scan-boitier" {% if not boitiers_scan %}disabled{% endif %}>
                         {% for b in boitiers_scan %}
                         <option value="{{ b.id }}" {% if b.id == boitier_scan %}selected{% endif %}>
-                            {{ b.id }}{% if b.prof %} ({{ b.prof }}){% else %} (enrôlement){% endif %} · {{ "en ligne" if b.en_ligne else "hors ligne" }}
+                            {{ b.id }} (accueil) · {{ "en ligne" if b.en_ligne else "hors ligne" }}
                         </option>
                         {% else %}
-                        <option>Aucun boîtier configuré</option>
+                        <option>Aucun boîtier d'accueil : cochez « Accueil » sur un boîtier (Configuration)</option>
                         {% endfor %}
                     </select>
                 </div>

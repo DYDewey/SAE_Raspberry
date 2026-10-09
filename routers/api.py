@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 import models
 from database import get_db
-from services import scan
+from services import ical, scan
 from services.presences import trouver_seance
 from services.temps import maintenant_paris, normaliser_uid, vers_heure_paris
 
@@ -24,6 +24,7 @@ class PointageIn(BaseModel):
 class SyncIn(BaseModel):
     device_id: str
     batch: list[PointageIn] = []
+    connexion: bool = False  # True au premier contact après un démarrage ou une coupure réseau
 
 
 @router.get("/status")
@@ -41,6 +42,10 @@ def synchroniser(payload: SyncIn, authorization: str = Header(None), db: Session
     if not boitier or not secrets.compare_digest(token, boitier.token):
         # 401 : le boîtier garde ses pointages en local et réessaiera plus tard
         raise HTTPException(status_code=401, detail="Boîtier inconnu ou token invalide")
+
+    if payload.connexion:
+        # Le boîtier vient de (re)trouver le réseau : on remet l'EDT à jour en arrière-plan
+        ical.synchroniser_en_fond(f"connexion de {boitier.device_id}")
 
     recu_le = maintenant_paris()
     # Un "Scanner la carte" attend un bip de CE boîtier : le boîtier affiche alors

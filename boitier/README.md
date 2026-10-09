@@ -24,7 +24,7 @@ badge -> lecteur RC522 -> UID (hexa) -> SQLite locale (synced = 0) -> LED verte 
 | LED bleue fixe | prêt, serveur joignable |
 | LED bleue clignotante | prêt, serveur injoignable (stockage local) |
 | LED verte + 1 bip | badge enregistré |
-| LED bleue + 2 bips courts | badge déjà pris en compte il y a moins d'1 minute |
+| LED bleue qui clignote 3 fois + 1 bip très court | badge déjà pris en compte il y a moins d'1 minute |
 | LED bleue 1,5 s + 1 bip | nouvelle carte enregistrée pendant un « Scanner la carte » |
 | LED rouge + 2 bips courts | carte inconnue (associée à aucun étudiant), carte mal lue pendant plus d'1 s, ou erreur d'enregistrement |
 
@@ -49,10 +49,10 @@ badge -> lecteur RC522 -> UID (hexa) -> SQLite locale (synced = 0) -> LED verte 
    cd ~/boitier
    bash installer.sh
    nano .env            # SERVEUR_URL, DEVICE_ID, API_TOKEN
-   venv/bin/python boitier.py           # test à la main (Ctrl+C pour arrêter)
-   sudo systemctl start pointage-boitier
+   sudo systemctl restart pointage-boitier   # relance avec le .env complété
    ```
 4. Le boîtier démarre ensuite tout seul à chaque allumage. Journal : `journalctl -u pointage-boitier -f`.
+   Le service porte le nom du dossier (`pointage-boitier_acceuil` pour le dossier `boitier_acceuil`). Un seul lecteur NFC par Pi : lancer `installer.sh` dans un dossier arrête le service de l'autre.
 
 ## Un seul Raspberry pour la salle et l'accueil
 

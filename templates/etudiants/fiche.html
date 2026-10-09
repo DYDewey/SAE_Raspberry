@@ -77,7 +77,7 @@
                                 <div class="small text-muted">{{ b.nom_groupe }} · {{ b.nom_salle }}{% if b.nom_prof %} · {{ b.nom_prof }}{% endif %}</div>
                             </td>
                             <td class="text-center">{{ h.arrivee | heure }}</td>
-                            <td class="text-end">{{ statut(h.statut) }}</td>
+                            <td class="text-end">{% if h.manuel %}<i class="bi bi-pencil-fill small text-muted me-1" title="Validé à la main par le prof"></i>{% endif %}{{ statut(h.statut) }}</td>
                         </tr>
                         {% else %}
                         <tr><td colspan="4" class="text-center text-muted py-5">Aucun cours sur cette période.</td></tr>

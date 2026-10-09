@@ -30,6 +30,12 @@ DUREE_ATTENTE_S = 60
 _attente = None   # {"etudiant_id": int | None, "device_id": str, "depuis": datetime}
 
 
+def est_accueil(boitier) -> bool:
+    """Boîtier coché "Accueil" dans Configuration : seul lui sert à enregistrer les cartes,
+    un boîtier de salle doit rester libre pour les pointages de cours."""
+    return bool(boitier.accueil)
+
+
 def demarrer(device_id: str, etudiant_id=None):
     """etudiant_id=None : on veut seulement lire l'UID (formulaire d'ajout)."""
     global _attente

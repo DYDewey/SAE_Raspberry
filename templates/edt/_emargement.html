@@ -27,7 +27,7 @@
         <div class="col-4"><div class="border rounded-3 py-2"><div class="fs-4 fw-bold text-danger">{{ compteur["Absent"] }}</div><div class="small text-muted">Absents</div></div></div>
     </div>
     {{ barre(compteur["Présent"], compteur["En retard"], compteur["Absent"]) }}
-    <div class="small text-muted mt-1 mb-3">Retard compté après {{ limite_retard | heure }} · le dernier bip compte comme sortie</div>
+    <div class="small text-muted mt-1 mb-3">Retard compté après {{ limite_retard | heure }} · le dernier bip compte comme sortie · cliquez sur un statut pour le modifier à la main</div>
     {% else %}
     <div class="alert alert-light border small"><i class="bi bi-hourglass-split me-1"></i>Le cours n'a pas encore commencé : les pointages apparaîtront ici en direct.</div>
     {% endif %}
@@ -56,7 +56,8 @@
                 {% set e = p.etudiant %}
                 <tr data-nom="{{ (e.nom ~ ' ' ~ e.prenom ~ ' ' ~ e.numero_etudiant) | lower }}">
                     <td>
-                        <a href="/admin/etudiants/{{ e.id }}" class="fw-semibold text-decoration-none text-reset">{{ e.nom | upper }} {{ e.prenom }}</a>
+                        {% if est_prof %}<span class="fw-semibold">{{ e.nom | upper }} {{ e.prenom }}</span>
+                        {% else %}<a href="/admin/etudiants/{{ e.id }}" class="fw-semibold text-decoration-none text-reset">{{ e.nom | upper }} {{ e.prenom }}</a>{% endif %}
                         <div class="small text-muted">
                             {{ e.numero_etudiant }}
                             {% if not p.badge %}<span class="text-warning ms-1" title="Aucune carte associée"><i class="bi bi-exclamation-triangle"></i> sans carte</span>{% endif %}
@@ -65,12 +66,31 @@
                     <td class="text-center">{{ p.arrivee | heure }}</td>
                     <td class="text-center">{{ p.sortie | heure }}</td>
                     <td class="text-end">
-                        {% if etat == "a_venir" %}<span class="statut statut-avenir">À venir</span>{% else %}{{ statut(p.statut) }}{% endif %}
+                        {# Clic sur le statut : le prof peut valider l'étudiant à la main (boîtier en panne...) #}
+                        <div class="dropdown d-inline-block">
+                            <button type="button" class="btn btn-link p-0 border-0 text-decoration-none" data-bs-toggle="dropdown"
+                                    data-bs-popper-config='{"strategy":"fixed"}' title="Modifier le statut à la main">
+                                {% if p.manuel %}<i class="bi bi-pencil-fill small text-muted me-1" title="Validé à la main"></i>{% endif %}
+                                {%- if etat == "a_venir" and not p.manuel %}<span class="statut statut-avenir">À venir</span>{% else %}{{ statut(p.statut) }}{% endif %}
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                <li><h6 class="dropdown-header">Valider à la main</h6></li>
+                                {% for valeur, icone in [("Présent", "check-circle text-success"), ("En retard", "clock-history text-warning"), ("Absent", "x-circle text-danger")] %}
+                                <li><button type="button" class="dropdown-item" data-manuel="{{ valeur }}" data-seance="{{ bloc.id }}" data-etudiant="{{ e.id }}">
+                                    <i class="bi bi-{{ icone }} me-2"></i>{{ valeur }}</button></li>
+                                {% endfor %}
+                                {% if p.manuel %}
+                                <li><hr class="dropdown-divider"></li>
+                                <li><button type="button" class="dropdown-item" data-manuel="" data-seance="{{ bloc.id }}" data-etudiant="{{ e.id }}">
+                                    <i class="bi bi-arrow-counterclockwise me-2"></i>Revenir au badge</button></li>
+                                {% endif %}
+                            </ul>
+                        </div>
                     </td>
                 </tr>
                 {% else %}
                 <tr><td colspan="4" class="text-center text-muted py-4">Aucun étudiant n'est inscrit dans ce groupe.<br>
-                    <a href="/admin/etudiants">Importer ou affecter des étudiants</a></td></tr>
+                    {% if not est_prof %}<a href="/admin/etudiants">Importer ou affecter des étudiants</a>{% endif %}</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -83,7 +103,7 @@
         <div class="d-flex justify-content-between">
             <span>
                 <span class="uid">{{ h.badge }}</span> —
-                {% if h.etudiant %}<a href="/admin/etudiants/{{ h.etudiant.id }}">{{ h.etudiant.nom | upper }} {{ h.etudiant.prenom }}</a> (autre groupe)
+                {% if h.etudiant %}{% if est_prof %}{{ h.etudiant.nom | upper }} {{ h.etudiant.prenom }}{% else %}<a href="/admin/etudiants/{{ h.etudiant.id }}">{{ h.etudiant.nom | upper }} {{ h.etudiant.prenom }}</a>{% endif %} (autre groupe)
                 {% else %}carte non associée{% endif %}
             </span>
             <span>{{ h.heure | heure }}</span>

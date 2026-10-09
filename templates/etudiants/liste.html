@@ -6,7 +6,8 @@
 <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-4">
     <div>
         <h1 class="h3 titre-page">Étudiants</h1>
-        <div class="sous-titre">{{ total }} étudiant(s) · {{ total_sans_carte }} sans carte</div>
+        <div class="sous-titre">{{ total }} étudiant(s) · {{ total_sans_carte }} sans carte
+            {% if groupe_choisi or q or sans_carte %}· <strong>{{ etudiants | length }} affiché(s)</strong>{% endif %}</div>
     </div>
     <div class="d-flex gap-2">
         <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modal-import">
@@ -46,7 +47,7 @@
                 <tr>
                     <th>Étudiant</th>
                     <th>N° étudiant</th>
-                    <th>Groupes</th>
+                    <th>Groupe</th>
                     <th style="width: 240px">Carte NFC</th>
                     <th class="text-end">Actions</th>
                 </tr>
@@ -57,7 +58,10 @@
                     <td><a href="/admin/etudiants/{{ e.id }}" class="fw-semibold text-decoration-none">{{ e.nom | upper }} {{ e.prenom }}</a></td>
                     <td class="text-muted">{{ e.numero_etudiant }}</td>
                     <td>
-                        {% for g in e.groupes | sort(attribute="nom_groupe") %}<span class="badge text-bg-light border me-1">{{ g.nom_groupe }}</span>{% else %}<span class="text-muted small">—</span>{% endfor %}
+                        {# Groupe le plus précis au format ADE (BUT3-TD3-PB) ; survol : groupes du fichier importé #}
+                        {% set affiche = e.groupes | groupe_affiche %}
+                        {% if affiche %}<span class="badge text-bg-light border" title="Groupes importés : {{ e.groupes | map(attribute='nom_groupe') | sort | join(', ') }}">{{ affiche }}</span>
+                        {% else %}<span class="text-muted small">—</span>{% endif %}
                     </td>
                     <td>
                         {% if e.carte %}

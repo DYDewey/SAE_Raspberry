@@ -1,5 +1,7 @@
 """Import de l'emploi du temps depuis le flux iCal de l'université (ADE)."""
 import re
+import threading
+import time
 from datetime import datetime, timedelta
 
 import requests
@@ -57,6 +59,39 @@ def telecharger_et_importer(db: Session) -> dict:
     reponse = requests.get(ICAL_URL, timeout=30)
     reponse.raise_for_status()
     return importer_ical(db, reponse.content)
+
+
+_verrou_fond = threading.Lock()
+_derniere_fond = 0.0
+INTERVALLE_MIN_FOND_S = 5 * 60
+
+
+def synchroniser_en_fond(raison: str) -> bool:
+    """Relance l'import de l'EDT dans un thread (sans bloquer la réponse au boîtier).
+    Appelé quand un boîtier se (re)connecte. Au plus un import toutes les 5 minutes."""
+    global _derniere_fond
+    if not ICAL_URL or time.monotonic() - _derniere_fond < INTERVALLE_MIN_FOND_S:
+        return False
+    if not _verrou_fond.acquire(blocking=False):
+        return False                       # un import est déjà en cours
+    _derniere_fond = time.monotonic()
+
+    def tache():
+        from database import SessionLocal
+        db = SessionLocal()
+        try:
+            r = telecharger_et_importer(db)
+            print(f"EDT synchronisé ({raison}) : {r['crees']} ajouté(s), {r['modifies']} modifié(s), "
+                  f"{r['supprimes']} supprimé(s).")
+        except Exception as e:
+            db.rollback()
+            print(f"Échec de la synchro de l'EDT ({raison}) : {e}")
+        finally:
+            db.close()
+            _verrou_fond.release()
+
+    threading.Thread(target=tache, daemon=True, name="synchro-edt").start()
+    return True
 
 
 def importer_ical(db: Session, contenu: bytes, reference: datetime = None, semaines: int = ICAL_SEMAINES) -> dict:

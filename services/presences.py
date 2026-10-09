@@ -255,6 +255,23 @@ def etudiants_du_groupe(db: Session, id_groupe):
     return etudiants_par_groupe(db, [id_groupe]).get(id_groupe, [])
 
 
+def corrections_manuelles(db: Session, ids_seances) -> dict:
+    """{(id_etudiant, id_seance): statut} saisis à la main par le prof."""
+    ids_seances = list(ids_seances)
+    if not ids_seances:
+        return {}
+    return {(c.id_etudiant, c.id_seance): c.statut for c in db.query(models.PresenceManuelleDB).filter(
+        models.PresenceManuelleDB.id_seance.in_(ids_seances)).all()}
+
+
+def statut_manuel(corrections: dict, id_etudiant: int, bloc: Bloc):
+    """Statut saisi à la main pour cet étudiant sur ce bloc, ou None."""
+    for i in bloc.ids:
+        if (id_etudiant, i) in corrections:
+            return corrections[(id_etudiant, i)]
+    return None
+
+
 def presences_bloc(db: Session, bloc: Bloc):
     """Feuille d'émargement détaillée d'un bloc.
     Retourne (liste des étudiants, badges hors liste, compteur par statut)."""
@@ -264,6 +281,7 @@ def presences_bloc(db: Session, bloc: Bloc):
     ).order_by(models.PointageDB.timestamp).all():
         bips[p.nfc_uid].append(p.timestamp)
 
+    corrections = corrections_manuelles(db, bloc.ids)
     liste, uids_connus = [], set()
     compteur = {PRESENT: 0, RETARD: 0, ABSENT: 0}
     for etudiant in etudiants_du_groupe(db, bloc.groupe.id) if bloc.groupe else []:
@@ -271,12 +289,14 @@ def presences_bloc(db: Session, bloc: Bloc):
         heures = bips.get(uid, []) if uid else []
         if uid:
             uids_connus.add(uid)
-        statut = statut_depuis(heures[0] if heures else None, bloc.debut)
+        manuel = statut_manuel(corrections, etudiant.id, bloc)
+        statut = manuel or statut_depuis(heures[0] if heures else None, bloc.debut)
         compteur[statut] += 1
         liste.append({
             "etudiant": etudiant,
             "badge": uid,
             "statut": statut,
+            "manuel": manuel is not None,
             "arrivee": heures[0] if heures else None,
             "sortie": heure_sortie(heures),
         })
@@ -300,17 +320,12 @@ def resumes_blocs(db: Session, blocs) -> dict:
         return {}
     maintenant = maintenant_paris()
 
-    # Étudiants attendus et leurs cartes, pour chaque groupe concerné
-    effectifs = defaultdict(int)
-    cartes_groupe = defaultdict(set)
-    for id_groupe, etudiants in etudiants_par_groupe(db, {b.groupe.id for b in blocs if b.groupe}).items():
-        for e in etudiants:
-            effectifs[id_groupe] += 1
-            if e.carte:
-                cartes_groupe[id_groupe].add(e.carte.nfc_uid)
+    # Étudiants attendus pour chaque groupe concerné
+    etudiants_groupe = etudiants_par_groupe(db, {b.groupe.id for b in blocs if b.groupe})
 
     # Premier bip de chaque carte dans chaque séance
     tous_ids = [i for b in blocs for i in b.ids]
+    corrections = corrections_manuelles(db, tous_ids)
     premiers = defaultdict(dict)
     for id_seance, uid, premier in db.query(
         models.PointageDB.id_seance, models.PointageDB.nfc_uid, func.min(models.PointageDB.timestamp)
@@ -328,11 +343,13 @@ def resumes_blocs(db: Session, blocs) -> dict:
                 if uid not in premier_par_uid or t < premier_par_uid[uid]:
                     premier_par_uid[uid] = t
         present = retard = 0
-        for uid in cartes_groupe[id_groupe]:
-            statut = statut_depuis(premier_par_uid.get(uid), b.debut)
+        etudiants = etudiants_groupe.get(id_groupe, [])
+        for e in etudiants:
+            uid = e.carte.nfc_uid if e.carte else None
+            statut = statut_manuel(corrections, e.id, b) or statut_depuis(premier_par_uid.get(uid), b.debut)
             present += statut == PRESENT
             retard += statut == RETARD
-        effectif = effectifs[id_groupe]
+        effectif = len(etudiants)
         resultat[b.id] = {
             "effectif": effectif,
             "present": present,
@@ -394,16 +411,19 @@ def historique_etudiant(db: Session, etudiant, debut: datetime, fin: datetime):
              if b.groupe and etudiant_concerne(noms, b.groupe.nom_groupe)]
     uid = etudiant.carte.nfc_uid if etudiant.carte else None
     bips = _bips_par_seance(db, [uid] if uid else [], [i for b in blocs for i in b.ids])
+    corrections = corrections_manuelles(db, [i for b in blocs for i in b.ids])
 
     maintenant = maintenant_paris()
     lignes = []
     for b in sorted(blocs, key=lambda b: b.debut, reverse=True):
         heures = sorted(t for i in b.ids for t in bips.get((uid, i), []))
-        if pas_encore_compte(b, heures, maintenant):
+        manuel = statut_manuel(corrections, etudiant.id, b)
+        if not manuel and pas_encore_compte(b, heures, maintenant):
             continue
         lignes.append({
             "bloc": b,
-            "statut": statut_depuis(heures[0] if heures else None, b.debut),
+            "statut": manuel or statut_depuis(heures[0] if heures else None, b.debut),
+            "manuel": manuel is not None,
             "arrivee": heures[0] if heures else None,
             "sortie": heure_sortie(heures),
         })
@@ -416,6 +436,7 @@ def bilan_etudiants(db: Session, etudiants, debut: datetime, fin: datetime):
     blocs = _blocs_commences(db, ids_groupes, debut, fin)
     uids = [e.carte.nfc_uid for e in etudiants if e.carte]
     bips = _bips_par_seance(db, uids, [i for b in blocs for i in b.ids])
+    corrections = corrections_manuelles(db, [i for b in blocs for i in b.ids])
 
     maintenant = maintenant_paris()
     bilan = []
@@ -427,9 +448,10 @@ def bilan_etudiants(db: Session, etudiants, debut: datetime, fin: datetime):
             if not b.groupe or not etudiant_concerne(mes_groupes, b.groupe.nom_groupe):
                 continue
             heures = [t for i in b.ids for t in bips.get((uid, i), [])]
-            if pas_encore_compte(b, heures, maintenant):
+            manuel = statut_manuel(corrections, e.id, b)
+            if not manuel and pas_encore_compte(b, heures, maintenant):
                 continue
-            compte[statut_depuis(min(heures) if heures else None, b.debut)] += 1
+            compte[manuel or statut_depuis(min(heures) if heures else None, b.debut)] += 1
         total = sum(compte.values())
         bilan.append({
             "etudiant": e,

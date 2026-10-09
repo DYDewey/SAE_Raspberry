@@ -49,6 +49,10 @@ class AntiRebond:
     def restant(self, uid: str) -> int:
         return max(0, round(self.delai - (time.monotonic() - self.enregistrees.get(uid, 0))))
 
+    def oublier(self, uid: str):
+        """Bip d'enregistrement de carte (pas une présence) : pas de délai pour la suite."""
+        self.enregistrees.pop(uid, None)
+
     def confirmer(self, uid: str):
         """À appeler seulement quand le bip est bien enregistré : démarre le délai."""
         maintenant = time.monotonic()
@@ -147,6 +151,7 @@ def main():
             # si un "Scanner la carte" l'attend sur ce boîtier (LED bleue)
             if not connue and synchro.en_ligne and synchro.envoyer_maintenant(pointage["uuid"]):
                 log.info("Badge %s enregistré pour un étudiant (Scanner la carte)", uid)
+                anti_rebond.oublier(uid)
                 signaux.enrolement()
                 continue
             synchro.demander_envoi()

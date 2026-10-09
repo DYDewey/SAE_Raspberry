@@ -5,7 +5,7 @@
 <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-4">
     <div>
         <h1 class="h3 titre-page">Professeurs</h1>
-        <div class="sous-titre">{{ professeurs | length }} professeur(s) · importés automatiquement depuis l'emploi du temps</div>
+        <div class="sous-titre">{{ professeurs | length }} professeur(s) · importés automatiquement depuis l'emploi du temps · <i class="bi bi-key"></i> pour créer le compte d'un prof (il verra ses cours et pourra valider ses étudiants)</div>
     </div>
 </div>
 
@@ -15,7 +15,7 @@
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
                     <thead>
-                        <tr><th>Nom</th><th class="text-center">Cours importés</th><th>Boîtier attitré</th><th class="text-end">Actions</th></tr>
+                        <tr><th>Nom</th><th class="text-center">Cours importés</th><th>Boîtier attitré</th><th>Compte</th><th class="text-end">Actions</th></tr>
                     </thead>
                     <tbody>
                         {% for p in professeurs %}
@@ -28,15 +28,41 @@
                                 {% for d in boitiers.get(p.id, []) %}<span class="badge text-bg-light border me-1"><i class="bi bi-router me-1"></i>{{ d }}</span>
                                 {% else %}<a href="/admin/configuration#boitiers" class="small text-muted text-decoration-none">Attribuer un boîtier</a>{% endfor %}
                             </td>
-                            <td class="text-end">
+                            <td>
+                                {% if p.identifiant %}
+                                <span class="badge text-bg-success-subtle text-success-emphasis border"><i class="bi bi-person-check me-1"></i>{{ p.identifiant }}</span>
+                                {% else %}<span class="small text-muted">Aucun</span>{% endif %}
+                            </td>
+                            <td class="text-end text-nowrap">
+                                <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#compte-{{ p.id }}"
+                                        title="{{ 'Modifier le compte' if p.identifiant else 'Créer un compte' }}"><i class="bi bi-key"></i></button>
                                 <form action="/admin/professeurs/{{ p.id }}/supprimer" method="post" class="d-inline"
                                       data-confirmer="Supprimer {{ p.prenom }} {{ p.nom }} et tous ses cours de l'emploi du temps ?">
                                     <button class="btn btn-sm btn-outline-danger" title="Supprimer"><i class="bi bi-trash"></i></button>
                                 </form>
                             </td>
                         </tr>
+                        <tr class="collapse bg-body-tertiary" id="compte-{{ p.id }}">
+                            <td colspan="5">
+                                {# Compte de connexion : le prof voit ses cours et valide ses étudiants à la main #}
+                                <form action="/admin/professeurs/{{ p.id }}/compte" method="post" class="row g-2 align-items-center py-1">
+                                    <div class="col-sm-4"><input type="text" class="form-control form-control-sm" name="identifiant" placeholder="Identifiant"
+                                           value="{{ p.identifiant or '' }}" required autocomplete="off"></div>
+                                    <div class="col-sm-4"><input type="password" class="form-control form-control-sm" name="mot_de_passe" autocomplete="new-password"
+                                           placeholder="{{ 'Nouveau mot de passe (vide : inchangé)' if p.identifiant else 'Mot de passe (6 caractères min.)' }}"
+                                           {% if not p.identifiant %}required minlength="6"{% endif %}></div>
+                                    <div class="col-sm-4 d-flex gap-2">
+                                        <button class="btn btn-sm btn-primary bg-iut border-0" type="submit">Enregistrer</button>
+                                        {% if p.identifiant %}
+                                        <button class="btn btn-sm btn-outline-danger" type="submit" formaction="/admin/professeurs/{{ p.id }}/compte/supprimer" formnovalidate
+                                                onclick="return confirm('Supprimer l\'accès de {{ p.prenom }} {{ p.nom }} ?')">Retirer l'accès</button>
+                                        {% endif %}
+                                    </div>
+                                </form>
+                            </td>
+                        </tr>
                         {% else %}
-                        <tr><td colspan="4" class="text-center text-muted py-5">Aucun professeur. Synchronisez l'emploi du temps ou ajoutez-en un.</td></tr>
+                        <tr><td colspan="5" class="text-center text-muted py-5">Aucun professeur. Synchronisez l'emploi du temps ou ajoutez-en un.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>

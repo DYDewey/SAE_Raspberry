@@ -76,7 +76,9 @@ class Synchro(threading.Thread):
         try:
             r = requests.post(
                 f"{config.SERVEUR_URL}/api/v1/sync",
-                json={"device_id": config.DEVICE_ID, "batch": lot},
+                # connexion : premier contact depuis le démarrage ou une coupure -> le serveur
+                # remet l'emploi du temps à jour
+                json={"device_id": config.DEVICE_ID, "batch": lot, "connexion": self.en_ligne is not True},
                 headers={"Authorization": f"Bearer {config.API_TOKEN}"},
                 timeout=config.DELAI_HTTP,
             )

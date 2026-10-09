@@ -52,14 +52,15 @@ def page_configuration(request: Request, db: Session = Depends(get_db)):
 
 @router.post("/boitiers/ajouter")
 def ajouter_boitier(request: Request, device_id: str = Form(...), id_prof: str = Form(""),
-                    id_salle: str = Form(""), mode_sae: str = Form(""), db: Session = Depends(get_db)):
+                    id_salle: str = Form(""), mode_sae: str = Form(""), accueil: str = Form(""),
+                    db: Session = Depends(get_db)):
     device_id = device_id.strip()[:32]
     if db.get(models.BoitierDB, device_id):
         flash(request, f"Le boîtier {device_id} existe déjà.", "warning")
     elif device_id:
         db.add(models.BoitierDB(device_id=device_id, token=secrets.token_hex(16),
                                 id_prof=_id_ou_none(id_prof), id_salle=_id_ou_none(id_salle),
-                                mode_sae=bool(mode_sae)))
+                                mode_sae=bool(mode_sae), accueil=bool(accueil)))
         db.commit()
         flash(request, f"Boîtier {device_id} créé. Recopiez son token dans le fichier .env du Raspberry Pi.")
     return RedirectResponse(url=RETOUR + "#boitiers", status_code=303)
@@ -67,11 +68,12 @@ def ajouter_boitier(request: Request, device_id: str = Form(...), id_prof: str =
 
 @router.post("/boitiers/{device_id}/modifier")
 def modifier_boitier(device_id: str, request: Request, id_prof: str = Form(""), id_salle: str = Form(""),
-                     mode_sae: str = Form(""), db: Session = Depends(get_db)):
+                     mode_sae: str = Form(""), accueil: str = Form(""), db: Session = Depends(get_db)):
     boitier = db.get(models.BoitierDB, device_id)
     if boitier:
         boitier.id_prof, boitier.id_salle = _id_ou_none(id_prof), _id_ou_none(id_salle)
         boitier.mode_sae = bool(mode_sae)
+        boitier.accueil = bool(accueil)
         db.commit()
         # Le boîtier a changé de prof/salle : on recalcule ses pointages récents
         fin = maintenant_paris() + timedelta(days=1)
