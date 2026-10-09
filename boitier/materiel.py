@@ -2,10 +2,11 @@
 
 Signaux :
   LED rouge fixe              démarrage du Raspberry (avant le lancement du script)
-  LED bleue fixe              boîtier opérationnel, prêt à lire une carte
+  LED bleue fixe              boîtier opérationnel, serveur joignable
+  LED bleue clignote lentement  serveur injoignable : les bips sont gardés en local
   LED verte + 1 bip           carte lue, pointage enregistré
   LED rouge 2 s + 2 bips      carte mal lue (plus d'1 s), carte inconnue ou erreur d'enregistrement
-  LED bleue clignote          envoi des pointages au serveur en cours (redevient fixe à la fin)
+  LED bleue clignote vite     envoi des pointages au serveur en cours (redevient fixe à la fin)
   LED rouge clignote          envoi au serveur échoué (nouvel essai un peu plus tard)
   LED rouge clignote (arrêt)  le script s'est arrêté sur une erreur (systemd le relance)
   LED verte clignote + 2 bips très courts  badge déjà enregistré il y a moins d'1 minute
@@ -47,6 +48,7 @@ class Signaux:
         self.verrou = threading.RLock()
         self.envoi_en_cours = threading.Event()
         self.pret = threading.Event()          # fin du démarrage : bleue fixe
+        self.hors_ligne = threading.Event()    # serveur injoignable : bleue clignote lentement
         self.bleue_jusqu_a = 0.0             # un envoi rapide reste visible au moins 0,6 s
         self.arret = threading.Event()
         threading.Thread(target=self._led_bleue, daemon=True, name="led-bleue").start()
@@ -57,13 +59,17 @@ class Signaux:
         self.GPIO.output(pin, self.GPIO.HIGH if etat else self.GPIO.LOW)
 
     def _led_bleue(self):
-        """LED bleue : fixe quand le boîtier est prêt, clignote pendant un envoi au serveur."""
-        allumee = False
+        """LED bleue : fixe quand le boîtier est prêt et le serveur joignable,
+        clignote vite pendant un envoi, lentement quand le serveur est injoignable."""
+        allumee, tic = False, 0
         while not self.arret.is_set():
+            tic += 1
             if not self.pret.is_set():
                 allumee = False
             elif self.envoi_en_cours.is_set() or time.monotonic() < self.bleue_jusqu_a:
-                allumee = not allumee
+                allumee = not allumee                  # 0,15 s allumée / 0,15 s éteinte
+            elif self.hors_ligne.is_set():
+                allumee = (tic // 4) % 2 == 0          # 0,6 s allumée / 0,6 s éteinte
             else:
                 allumee = True
             with self.verrou:
@@ -94,7 +100,10 @@ class Signaux:
         self.pret.set()
 
     def etat_reseau(self, en_ligne: bool):
-        pass        # l'état du réseau se lit dans le journal ; la bleue ne sert qu'aux envois
+        if en_ligne:
+            self.hors_ligne.clear()
+        else:
+            self.hors_ligne.set()
 
     def debut_envoi(self):
         self.bleue_jusqu_a = time.monotonic() + 0.6

@@ -193,12 +193,50 @@
         <div class="card h-100 border-danger-subtle">
             <div class="card-header text-danger"><i class="bi bi-shield-lock me-1"></i>Purge RGPD de fin d'année</div>
             <div class="card-body">
-                <p class="small text-muted">Supprime définitivement les pointages antérieurs à la date choisie ({{ nb_pointages }} pointage(s) en base).</p>
+                <p class="small text-muted">Supprime définitivement les pointages et les validations manuelles antérieurs à la date choisie ({{ nb_pointages }} pointage(s) en base).</p>
                 <form action="/admin/configuration/rgpd/purge" method="post" class="input-group"
                       data-confirmer="Supprimer définitivement ces pointages ? Cette action est irréversible.">
                     <input type="date" name="avant" class="form-control" required>
                     <button type="submit" class="btn btn-danger"><i class="bi bi-trash me-1"></i>Purger</button>
                 </form>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Fin d'année -->
+<div class="card mt-4 border-warning-subtle" id="fin-annee">
+    <div class="card-header"><i class="bi bi-mortarboard me-1"></i>Fin d'année universitaire</div>
+    <div class="card-body">
+        <ol class="small text-muted mb-3">
+            <li>Les BUT3 qui partent : <strong>anonymiser</strong> (noms effacés, carte libérée, pointages gardés pour les statistiques) ou <strong>supprimer</strong> (tout est effacé).</li>
+            <li>Passer les BUT2 en BUT3, puis les BUT1 en BUT2 (chacun garde son TD/TP : BUT2-TD1 devient BUT3-TD1).</li>
+            <li>Importer la liste des nouveaux BUT1 depuis la page Étudiants.</li>
+        </ol>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div class="fw-semibold small mb-1">Départ d'une promo</div>
+                <form action="/admin/configuration/promo/depart" method="post" class="input-group input-group-sm"
+                      data-confirmer="Appliquer à tous les étudiants de cette promo ? Cette action est irréversible.">
+                    <select name="promo" class="form-select">
+                        {% for p, nb in promos.items() %}
+                        <option value="{{ p }}" {% if p == "BUT3" %}selected{% endif %}>{{ p }} ({{ nb }} étudiant{{ "s" if nb > 1 }})</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" name="action" value="anonymiser" class="btn btn-outline-warning"><i class="bi bi-incognito me-1"></i>Anonymiser</button>
+                    <button type="submit" name="action" value="supprimer" class="btn btn-outline-danger"><i class="bi bi-trash me-1"></i>Supprimer</button>
+                </form>
+            </div>
+            <div class="col-md-6">
+                <div class="fw-semibold small mb-1">Passage à l'année suivante</div>
+                <div class="d-flex gap-2">
+                    {% for depart, arrivee in [("BUT2", "BUT3"), ("BUT1", "BUT2")] %}
+                    <form action="/admin/configuration/promo/passage" method="post" class="m-0"
+                          data-confirmer="Passer les {{ promos[depart] }} étudiant(s) de {{ depart }} en {{ arrivee }} ?">
+                        <input type="hidden" name="depart" value="{{ depart }}">
+                        <button type="submit" class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-up-circle me-1"></i>{{ depart }} → {{ arrivee }}</button>
+                    </form>
+                    {% endfor %}
+                </div>
             </div>
         </div>
     </div>

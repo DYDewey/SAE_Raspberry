@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 import config
 import models
 from database import get_db
+from services import fin_annee
 from services.presences import rattacher_pointages
 from services.temps import lire_date, maintenant_paris
 from web import admin_requis, flash, groupes_par_promo, render
@@ -42,6 +43,7 @@ def page_configuration(request: Request, db: Session = Depends(get_db)):
         groupes=groupes_par_promo(groupes),
         effectifs=effectifs,
         nb_pointages=db.query(models.PointageDB).count(),
+        promos=fin_annee.effectifs_promos(db),
         config=config,
     )
 
@@ -192,6 +194,42 @@ def purge_rgpd(request: Request, avant: str = Form(...), db: Session = Depends(g
     limite = lire_date(avant)
     if limite:
         nb = db.query(models.PointageDB).filter(models.PointageDB.timestamp < limite).delete()
+        anciennes = [s for (s,) in db.query(models.SeanceDB.id).filter(models.SeanceDB.date_debut < limite)]
+        if anciennes:
+            db.query(models.PresenceManuelleDB).filter(models.PresenceManuelleDB.id_seance.in_(anciennes)) \
+                .delete(synchronize_session=False)
         db.commit()
         flash(request, f"{nb} pointage(s) antérieur(s) au {limite:%d/%m/%Y} supprimé(s).", "info")
     return RedirectResponse(url=RETOUR + "#rgpd", status_code=303)
+
+
+# ==========================================
+# Fin d'année : départ d'une promo, passage à l'année suivante
+# ==========================================
+
+@router.post("/promo/depart")
+def depart_promo(request: Request, promo: str = Form(...), action: str = Form(...), db: Session = Depends(get_db)):
+    if promo not in fin_annee.PROMOS or action not in ("anonymiser", "supprimer"):
+        return RedirectResponse(url=RETOUR + "#fin-annee", status_code=303)
+    etudiants = fin_annee.etudiants_de_promo(db, promo)
+    if action == "anonymiser":
+        nb = fin_annee.anonymiser(db, etudiants)
+        flash(request, f"{nb} étudiant(s) de {promo} anonymisé(s) : noms effacés, cartes libérées, "
+                       f"pointages conservés sans identité.", "info")
+    else:
+        nb = fin_annee.supprimer(db, etudiants)
+        flash(request, f"{nb} étudiant(s) de {promo} supprimé(s) avec leurs cartes et pointages.", "info")
+    return RedirectResponse(url=RETOUR + "#fin-annee", status_code=303)
+
+
+@router.post("/promo/passage")
+def passage_promo(request: Request, depart: str = Form(...), db: Session = Depends(get_db)):
+    if depart not in ("BUT1", "BUT2"):
+        return RedirectResponse(url=RETOUR + "#fin-annee", status_code=303)
+    arrivee = "BUT" + str(int(depart[-1]) + 1)
+    nb, erreur = fin_annee.passer_annee(db, depart, arrivee)
+    if erreur:
+        flash(request, erreur, "warning")
+    else:
+        flash(request, f"{nb} étudiant(s) passé(s) de {depart} en {arrivee} (mêmes TD/TP).")
+    return RedirectResponse(url=RETOUR + "#fin-annee", status_code=303)

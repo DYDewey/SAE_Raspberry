@@ -22,10 +22,11 @@ badge -> lecteur RC522 -> UID (hexa) -> SQLite locale (synced = 0) -> LED verte 
 | Signal | Signification |
 |---|---|
 | LED rouge fixe | démarrage du Raspberry (avant le lancement du script) |
-| LED bleue fixe | boîtier opérationnel, prêt à lire une carte |
+| LED bleue fixe | boîtier opérationnel, serveur joignable |
+| LED bleue qui clignote lentement | serveur injoignable : les bips sont gardés sur le boîtier et envoyés au retour du réseau |
 | LED verte + 1 bip | carte lue, pointage enregistré |
 | LED rouge 2 s + 2 bips courts | carte mal lue pendant plus d'1 s, carte inconnue ou erreur d'enregistrement |
-| LED bleue qui clignote | envoi des pointages au serveur en cours (redevient fixe ensuite) |
+| LED bleue qui clignote vite | envoi des pointages au serveur en cours (redevient fixe ensuite) |
 | LED rouge qui clignote 3 fois | envoi au serveur échoué, nouvel essai un peu plus tard |
 | LED rouge qui clignote 3 s | le script s'est arrêté sur une erreur ; systemd le relance (5 plantages en 5 min : le Pi redémarre) |
 | LED verte qui clignote 2 fois + 2 bips très courts | badge déjà pris en compte il y a moins d'1 minute |
