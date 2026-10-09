@@ -1,12 +1,15 @@
 """Matériel du boîtier : lecteur NFC RC522, LED et buzzer.
 
-Signification des signaux :
-  LED bleue fixe        prêt, serveur joignable
-  LED bleue clignotante prêt, serveur injoignable (les bips sont gardés en local)
-  LED verte + 1 bip     badge enregistré
-  LED bleue + 2 bips    badge déjà enregistré il y a moins d'1 minute (ignoré)
-  LED bleue 1,5 s + bip carte enregistrée sur la fiche d'un étudiant ("Scanner la carte")
-  LED rouge + 2 bips   carte mal lue (plus d'1 s), carte inconnue ou erreur d'enregistrement
+Signaux :
+  LED rouge fixe              démarrage du Raspberry (avant le lancement du script)
+  LED bleue fixe              boîtier opérationnel, prêt à lire une carte
+  LED verte + 1 bip           carte lue, pointage enregistré
+  LED rouge 2 s + 2 bips      carte mal lue (plus d'1 s), carte inconnue ou erreur d'enregistrement
+  LED bleue clignote          envoi des pointages au serveur en cours (redevient fixe à la fin)
+  LED rouge clignote          envoi au serveur échoué (nouvel essai un peu plus tard)
+  LED rouge clignote (arrêt)  le script s'est arrêté sur une erreur (systemd le relance)
+  LED verte clignote + 2 bips très courts  badge déjà enregistré il y a moins d'1 minute
+  LED verte + bleue 1,5 s + 1 bip          carte enregistrée sur la fiche d'un étudiant ("Scanner la carte")
 
 Le mode simulation (python boitier.py --simulation) remplace le matériel par
 le clavier et la console, pour tester sur un PC sans Raspberry Pi.
@@ -25,35 +28,47 @@ log = logging.getLogger("materiel")
 # ==========================================
 
 class Signaux:
+    """Les LED sont pilotées par deux threads : la boucle de lecture (verte / rouge,
+    via _signal) et le thread de synchro (bleue pendant un envoi, rouge si échec).
+    Un verrou évite qu'ils écrivent sur les LED en même temps."""
+
     def __init__(self):
         import RPi.GPIO as GPIO
         self.GPIO = GPIO
         GPIO.setmode(GPIO.BCM)
         GPIO.setwarnings(False)
-        for pin in (config.PIN_LED_BLEUE, config.PIN_LED_VERTE, config.PIN_LED_ROUGE):
+        for pin in (config.PIN_LED_BLEUE, config.PIN_LED_VERTE):
             GPIO.setup(pin, GPIO.OUT, initial=GPIO.LOW)
+        # La rouge est allumée par le Raspberry pendant le boot (installer.sh) : on la laisse
+        # allumée jusqu'à la fin du démarrage du script
+        GPIO.setup(config.PIN_LED_ROUGE, GPIO.OUT, initial=GPIO.HIGH)
         # Buzzer éteint dès la configuration de la broche (HIGH si buzzer inversé)
         GPIO.setup(config.PIN_BUZZER, GPIO.OUT, initial=GPIO.HIGH if config.BUZZER_INVERSE else GPIO.LOW)
-        self.en_ligne = False
-        self.occupe = threading.Event()        # un signal vert/rouge est en cours
+        self.verrou = threading.RLock()
+        self.envoi_en_cours = threading.Event()
+        self.pret = threading.Event()          # fin du démarrage : bleue fixe
+        self.bleue_jusqu_a = 0.0             # un envoi rapide reste visible au moins 0,6 s
         self.arret = threading.Event()
-        threading.Thread(target=self._led_etat, daemon=True, name="led-bleue").start()
+        threading.Thread(target=self._led_bleue, daemon=True, name="led-bleue").start()
 
     def _sortie(self, pin, etat):
         if pin == config.PIN_BUZZER and config.BUZZER_INVERSE:
             etat = not etat
         self.GPIO.output(pin, self.GPIO.HIGH if etat else self.GPIO.LOW)
 
-    def _led_etat(self):
-        """LED bleue : fixe si en ligne, clignotante sinon."""
+    def _led_bleue(self):
+        """LED bleue : fixe quand le boîtier est prêt, clignote pendant un envoi au serveur."""
         allumee = False
         while not self.arret.is_set():
-            if self.occupe.is_set():
-                time.sleep(0.05)
-                continue
-            allumee = True if self.en_ligne else not allumee
-            self._sortie(config.PIN_LED_BLEUE, allumee)
-            time.sleep(0.5)
+            if not self.pret.is_set():
+                allumee = False
+            elif self.envoi_en_cours.is_set() or time.monotonic() < self.bleue_jusqu_a:
+                allumee = not allumee
+            else:
+                allumee = True
+            with self.verrou:
+                self._sortie(config.PIN_LED_BLEUE, allumee)
+            time.sleep(0.15)
 
     def _bips(self, n, duree=0.08, pause=0.08):
         for i in range(n):
@@ -63,50 +78,64 @@ class Signaux:
             if i < n - 1:
                 time.sleep(pause)
 
-    def _signal(self, led, nb_bips, duree_bip, duree_led=0.8):
-        self.occupe.set()
-        self._sortie(config.PIN_LED_BLEUE, led == config.PIN_LED_BLEUE)
-        self._sortie(led, True)
-        self._bips(nb_bips, duree_bip)
-        time.sleep(max(0, duree_led - nb_bips * duree_bip))
-        self._sortie(led, False)
-        self.occupe.clear()
+    def _clignoter(self, pin, fois, periode=0.12, finir_allumee=False):
+        for _ in range(fois):
+            self._sortie(pin, not finir_allumee)
+            time.sleep(periode)
+            self._sortie(pin, finir_allumee)
+            time.sleep(periode)
 
     def demarrage(self):
-        for pin in (config.PIN_LED_BLEUE, config.PIN_LED_VERTE, config.PIN_LED_ROUGE):
-            self._sortie(pin, True)
-            time.sleep(0.15)
-            self._sortie(pin, False)
-        self._bips(1, 0.05)
+        """Fin du démarrage : la rouge (allumée pendant le boot) s'éteint, la bleue
+        s'allume et reste fixe tant que le boîtier est opérationnel."""
+        with self.verrou:
+            self._sortie(config.PIN_LED_ROUGE, False)
+            self._bips(1, 0.05)
+        self.pret.set()
 
     def etat_reseau(self, en_ligne: bool):
-        self.en_ligne = en_ligne
+        pass        # l'état du réseau se lit dans le journal ; la bleue ne sert qu'aux envois
+
+    def debut_envoi(self):
+        self.bleue_jusqu_a = time.monotonic() + 0.6
+        self.envoi_en_cours.set()
+
+    def fin_envoi(self, ok: bool):
+        self.envoi_en_cours.clear()
+        if not ok:
+            with self.verrou:
+                self._sortie(config.PIN_LED_BLEUE, False)
+                self._clignoter(config.PIN_LED_ROUGE, 3, 0.1)
+
+    def _signal(self, led, nb_bips, duree_bip, duree_led, bleue=False):
+        """Allume une LED (la bleue s'éteint pendant ce temps, sauf bleue=True) + bips.
+        Le verrou bloque le thread de la bleue : elle reprend son état à la fin."""
+        with self.verrou:
+            self._sortie(config.PIN_LED_BLEUE, bleue)
+            self._sortie(led, True)
+            self._bips(nb_bips, duree_bip)
+            time.sleep(max(0, duree_led - nb_bips * 2 * duree_bip))
+            self._sortie(led, False)
 
     def succes(self):
-        self._signal(config.PIN_LED_VERTE, 1, 0.1)
+        self._signal(config.PIN_LED_VERTE, 1, 0.1, duree_led=0.8)
 
     def deja_vu(self):
-        """Badge déjà pris en compte : la LED bleue clignote vite 3 fois + 1 bip très court.
-        (Avant : bleue fixe + 2 bips, impossible à distinguer de l'erreur rouge, la bleue
-        étant déjà allumée quand le boîtier est en ligne.)"""
-        self.occupe.set()
-        self._bips(1, 0.04)
-        for _ in range(3):
+        with self.verrou:
             self._sortie(config.PIN_LED_BLEUE, False)
-            time.sleep(0.12)
-            self._sortie(config.PIN_LED_BLEUE, True)
-            time.sleep(0.12)
-        self.occupe.clear()
+            self._bips(2, 0.03, 0.05)
+            self._clignoter(config.PIN_LED_VERTE, 2, 0.12)
 
     def enrolement(self):
-        self._signal(config.PIN_LED_BLEUE, 1, 0.1, duree_led=1.5)
+        self._signal(config.PIN_LED_VERTE, 1, 0.1, duree_led=1.5, bleue=True)
 
     def erreur(self):
-        self._signal(config.PIN_LED_ROUGE, 2, 0.1, duree_led=1.0)
+        """LED rouge 2 secondes + 2 bips courts."""
+        self._signal(config.PIN_LED_ROUGE, 2, 0.1, duree_led=2.0)
 
     def fermer(self):
         self.arret.set()
-        time.sleep(0.1)
+        time.sleep(0.2)
         self._sortie(config.PIN_BUZZER, False)
         # On libère tout sauf le buzzer, qui garde son état "éteint" après l'arrêt
         self.GPIO.cleanup([config.PIN_LED_BLEUE, config.PIN_LED_VERTE, config.PIN_LED_ROUGE])
@@ -115,26 +144,31 @@ class Signaux:
 class SignauxSimules(Signaux):
     """Affiche les signaux dans la console au lieu d'allumer des LED."""
     def __init__(self):
-        self.en_ligne = False
+        pass
 
     def demarrage(self):
-        print("[LED] test des LED au démarrage")
+        print("[LED] rouge éteinte, BLEUE fixe : boîtier opérationnel")
 
     def etat_reseau(self, en_ligne):
-        self.en_ligne = en_ligne
-        print(f"[LED] bleue {'fixe (en ligne)' if en_ligne else 'clignotante (hors ligne)'}")
+        print(f"[réseau] serveur {'joignable' if en_ligne else 'injoignable (stockage local)'}")
+
+    def debut_envoi(self):
+        print("[LED] bleue clignote : envoi au serveur")
+
+    def fin_envoi(self, ok):
+        print("[LED] bleue fixe : envoi terminé" if ok else "[LED] ROUGE clignote : envoi échoué")
 
     def succes(self):
-        print("[LED] VERTE + bip court : badge enregistré")
+        print("[LED] VERTE + bip : pointage enregistré")
 
     def deja_vu(self):
-        print("[LED] bleue clignote 3 fois + bip très court : badge déjà pris en compte")
+        print("[LED] verte clignote + 2 bips très courts : badge déjà pris en compte")
 
     def enrolement(self):
-        print("[LED] BLEUE 1,5 s + bip : nouvelle carte enregistrée (Scanner la carte)")
+        print("[LED] VERTE + BLEUE 1,5 s + bip : nouvelle carte enregistrée (Scanner la carte)")
 
     def erreur(self):
-        print("[LED] ROUGE + 2 bips courts : erreur")
+        print("[LED] ROUGE 2 s + 2 bips courts : erreur")
 
     def fermer(self):
         pass

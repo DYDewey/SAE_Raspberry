@@ -21,12 +21,15 @@ badge -> lecteur RC522 -> UID (hexa) -> SQLite locale (synced = 0) -> LED verte 
 
 | Signal | Signification |
 |---|---|
-| LED bleue fixe | prêt, serveur joignable |
-| LED bleue clignotante | prêt, serveur injoignable (stockage local) |
-| LED verte + 1 bip | badge enregistré |
-| LED bleue qui clignote 3 fois + 1 bip très court | badge déjà pris en compte il y a moins d'1 minute |
-| LED bleue 1,5 s + 1 bip | nouvelle carte enregistrée pendant un « Scanner la carte » |
-| LED rouge + 2 bips courts | carte inconnue (associée à aucun étudiant), carte mal lue pendant plus d'1 s, ou erreur d'enregistrement |
+| LED rouge fixe | démarrage du Raspberry (avant le lancement du script) |
+| LED bleue fixe | boîtier opérationnel, prêt à lire une carte |
+| LED verte + 1 bip | carte lue, pointage enregistré |
+| LED rouge 2 s + 2 bips courts | carte mal lue pendant plus d'1 s, carte inconnue ou erreur d'enregistrement |
+| LED bleue qui clignote | envoi des pointages au serveur en cours (redevient fixe ensuite) |
+| LED rouge qui clignote 3 fois | envoi au serveur échoué, nouvel essai un peu plus tard |
+| LED rouge qui clignote 3 s | le script s'est arrêté sur une erreur ; systemd le relance (5 plantages en 5 min : le Pi redémarre) |
+| LED verte qui clignote 2 fois + 2 bips très courts | badge déjà pris en compte il y a moins d'1 minute |
+| LED verte + bleue 1,5 s + 1 bip | nouvelle carte enregistrée pendant un « Scanner la carte » |
 
 * **Carte inconnue :** à chaque synchro, le serveur envoie la liste des cartes associées à un étudiant ; le boîtier la garde en local (elle marche donc hors ligne). Le bip d'une carte inconnue est quand même enregistré, pour pouvoir l'attribuer ensuite. Sur le boîtier d'accueil, mettre `CONTROLE_CARTES=0` : il sert justement à enregistrer des cartes nouvelles.
 * **Carte mal lue :** un échec isolé est réessayé en silence ; la LED rouge s'allume si la carte reste mal lue 1 s d'affilée (`ECHEC_LECTURE_S`). Pour tester : poser deux cartes l'une sur l'autre, ou taper `!` en mode `--simulation`.

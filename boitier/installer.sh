@@ -26,6 +26,13 @@ fi
 # Un service par dossier : boitier -> pointage-boitier, boitier_acceuil -> pointage-boitier_acceuil
 SERVICE="pointage-$(basename "$DOSSIER")"
 
+echo "== LED rouge allumée pendant le démarrage du Raspberry"
+CONFIG=/boot/firmware/config.txt
+[ -f "$CONFIG" ] || CONFIG=/boot/config.txt
+if ! grep -q "^gpio=22=op,dh" "$CONFIG"; then
+    printf '\n# Boitier de pointage : LED rouge (GPIO 22) allumee pendant le boot\ngpio=22=op,dh\n' | sudo tee -a "$CONFIG" >/dev/null
+fi
+
 echo "== Service au démarrage ($SERVICE)"
 sed -e "s#/home/pi/boitier#$DOSSIER#g" -e "s#User=pi#User=$UTILISATEUR#" pointage-boitier.service \
     | sudo tee "/etc/systemd/system/$SERVICE.service" >/dev/null

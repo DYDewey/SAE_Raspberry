@@ -16,9 +16,10 @@ log = logging.getLogger("synchro")
 
 
 class Synchro(threading.Thread):
-    def __init__(self, stockage, au_changement_etat=None):
+    def __init__(self, stockage, au_changement_etat=None, signaux=None):
         super().__init__(daemon=True, name="synchro")
         self.stockage = stockage
+        self.signaux = signaux               # LED bleue pendant un envoi, rouge s'il échoue
         self.au_changement_etat = au_changement_etat or (lambda en_ligne: None)
         self.en_ligne = None          # inconnu au démarrage
         self.arret = threading.Event()
@@ -73,6 +74,19 @@ class Synchro(threading.Thread):
                 return
 
     def _envoyer(self, lot) -> bool:
+        """Envoie un lot ; s'il contient des pointages, la LED bleue clignote pendant
+        l'envoi et la rouge clignote s'il échoue (logigramme du livrable 2)."""
+        if not lot or not self.signaux:
+            return self._poster(lot)
+        self.signaux.debut_envoi()
+        ok = False
+        try:
+            ok = self._poster(lot)
+        finally:
+            self.signaux.fin_envoi(ok)
+        return ok
+
+    def _poster(self, lot) -> bool:
         try:
             r = requests.post(
                 f"{config.SERVEUR_URL}/api/v1/sync",

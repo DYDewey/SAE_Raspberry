@@ -2,12 +2,19 @@
 Description=Boitier de pointage NFC
 # Démarre sans attendre le réseau : les pointages sont stockés en local
 After=local-fs.target time-sync.target
+# Logigramme du livrable 2 : si le script plante en boucle (5 fois en 5 min),
+# le Raspberry redémarre
+StartLimitIntervalSec=300
+StartLimitBurst=5
+StartLimitAction=reboot
 
 [Service]
 Type=simple
 User=pi
 WorkingDirectory=/home/pi/boitier
 ExecStart=/home/pi/boitier/venv/bin/python /home/pi/boitier/boitier.py
+# Arrêt sur erreur : la LED rouge clignote avant la relance
+ExecStopPost=/home/pi/boitier/venv/bin/python /home/pi/boitier/led_erreur.py
 Restart=always
 RestartSec=3
 Environment=PYTHONUNBUFFERED=1

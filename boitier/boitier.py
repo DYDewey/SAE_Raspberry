@@ -91,7 +91,7 @@ def main():
     from materiel import LectureIncomplete
 
     stockage = Stockage(config.BASE_LOCALE)
-    synchro = Synchro(stockage, au_changement_etat=signaux.etat_reseau)
+    synchro = Synchro(stockage, au_changement_etat=signaux.etat_reseau, signaux=signaux)
     anti_rebond = AntiRebond(config.ANTI_REBOND_S)
 
     # Arrêt propre quand systemd arrête le service (SIGTERM)
@@ -100,7 +100,6 @@ def main():
     signal.signal(signal.SIGTERM, arreter)
 
     signaux.demarrage()
-    signaux.etat_reseau(False)
     synchro.start()
     log.info("Boîtier %s prêt. Serveur : %s. %d pointage(s) en attente d'envoi.",
              config.DEVICE_ID, config.SERVEUR_URL, stockage.nb_en_attente())
