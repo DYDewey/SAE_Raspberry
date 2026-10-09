@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% from "_macros.html" import barre, classe_taux %}
+{% block titre %}Tableau de bord{% endblock %}
+
+{% block contenu %}
+<div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-4">
+    <div>
+        <h1 class="h3 titre-page">Tableau de bord</h1>
+        <div class="sous-titre">{{ maintenant | jour_fr(True) }} · {{ maintenant | heure }}</div>
+    </div>
+    <a href="/admin/edt" class="btn btn-primary bg-iut border-0"><i class="bi bi-calendar-week me-1"></i>Emploi du temps</a>
+</div>
+
+<!-- Chiffres clés -->
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl-3">
+        <div class="card h-100"><div class="card-body stat">
+            <div class="stat-icone bg-primary-subtle text-primary"><i class="bi bi-calendar-check"></i></div>
+            <div><div class="stat-valeur">{{ cours_du_jour | length }}</div><div class="stat-libelle">cours aujourd'hui</div></div>
+        </div></div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card h-100"><div class="card-body stat">
+            <div class="stat-icone bg-success-subtle text-success"><i class="bi bi-graph-up"></i></div>
+            <div>
+                <div class="stat-valeur">{% if taux_semaine is not none %}{{ taux_semaine }} %{% else %}—{% endif %}</div>
+                <div class="stat-libelle">présence sur 7 jours</div>
+            </div>
+        </div></div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <a href="/admin/etudiants{% if nb_sans_carte %}?sans_carte=true{% endif %}" class="text-reset text-decoration-none">
+        <div class="card h-100"><div class="card-body stat">
+            <div class="stat-icone bg-info-subtle text-info"><i class="bi bi-person-vcard"></i></div>
+            <div>
+                <div class="stat-valeur">{{ nb_cartes }}<span class="fs-6 text-muted fw-normal"> / {{ nb_etudiants }}</span></div>
+                <div class="stat-libelle">étudiants avec une carte{% if nb_sans_carte %} · <span class="text-warning-emphasis">{{ nb_sans_carte }} sans carte</span>{% endif %}</div>
+            </div>
+        </div></div>
+        </a>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <a href="/admin/configuration#boitiers" class="text-reset text-decoration-none">
+        <div class="card h-100"><div class="card-body stat">
+            <div class="stat-icone {% if boitiers and nb_en_ligne == boitiers|length %}bg-success-subtle text-success{% else %}bg-warning-subtle text-warning-emphasis{% endif %}"><i class="bi bi-router"></i></div>
+            <div><div class="stat-valeur">{{ nb_en_ligne }}<span class="fs-6 text-muted fw-normal"> / {{ boitiers | length }}</span></div><div class="stat-libelle">boîtiers en ligne</div></div>
+        </div></div>
+        </a>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Cours du jour -->
+    <div class="col-lg-8">
+        <div class="card h-100">
+            <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <span><i class="bi bi-clock me-1"></i>Cours du jour</span>
+                {% set promos = cours_du_jour | map(attribute=0) | map(attribute="nom_groupe") | map("promo") | unique | sort | list %}
+                {% if promos | length > 1 %}
+                <ul class="nav nav-pills small" id="onglets-cours">
+                    {% for p in promos %}
+                    <li class="nav-item"><button type="button" class="nav-link py-1 px-2" data-promo="{{ p }}">{{ p }}
+                        <span class="badge text-bg-light">{{ cours_du_jour | map(attribute=0) | map(attribute="nom_groupe") | map("promo") | select("equalto", p) | list | length }}</span></button></li>
+                    {% endfor %}
+                    <li class="nav-item"><button type="button" class="nav-link py-1 px-2" data-promo="">Tous</button></li>
+                </ul>
+                {% endif %}
+                <a href="/admin/edt" class="small text-decoration-none">Voir la semaine</a>
+            </div>
+            <div class="list-group list-group-flush" id="liste-cours">
+                {% for b, r in cours_du_jour %}
+                {% set t = ((r.present + r.retard) * 100 / r.effectif) | round | int if r.effectif else none %}
+                <a href="/admin/seances/{{ b.id }}" class="list-group-item list-group-item-action py-3" data-promo="{{ b.nom_groupe | promo }}">
+                    <div class="d-flex gap-3 align-items-center">
+                        <div class="text-center" style="min-width: 64px">
+                            <div class="fw-bold">{{ b.debut | heure }}</div>
+                            <div class="small text-muted">{{ b.fin | heure }}</div>
+                        </div>
+                        <div class="flex-grow-1 min-w-0">
+                            <div class="fw-semibold text-truncate">
+                                {% if r.etat == "en_cours" %}<span class="en-cours-pastille"></span>{% endif %}{{ b.libelle }}
+                            </div>
+                            <div class="small text-muted">
+                                <i class="bi bi-people"></i> {{ b.nom_groupe }} · <i class="bi bi-geo-alt"></i> {{ b.nom_salle }}
+                                {% if b.nom_prof %} · <i class="bi bi-person"></i> {{ b.nom_prof }}{% endif %}
+                            </div>
+                        </div>
+                        <div class="text-end" style="min-width: 110px">
+                            {% if r.etat == "a_venir" %}
+                                <span class="statut statut-avenir">À venir</span>
+                            {% else %}
+                                <div class="fw-semibold presence {{ classe_taux(t) }}">{{ r.present + r.retard }}/{{ r.effectif }} présents</div>
+                                {{ barre(r.present, r.retard, r.absent) }}
+                            {% endif %}
+                        </div>
+                    </div>
+                </a>
+                {% else %}
+                <div class="list-group-item text-center text-muted py-5">
+                    <i class="bi bi-cup-hot fs-2 d-block mb-2"></i>Aucun cours aujourd'hui.
+                    {% if not nb_seances %}<div class="small mt-1">L'emploi du temps n'a pas encore été importé : <a href="/admin/edt">ouvrir l'emploi du temps</a>.</div>{% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4 d-flex flex-column gap-4">
+        <!-- Derniers pointages -->
+        <div class="card">
+            <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <span><i class="bi bi-broadcast me-1"></i>Derniers pointages</span>
+                {% set promos_bips = derniers | map(attribute=2) | unique | sort | list %}
+                {% if promos_bips | length > 1 %}
+                <ul class="nav nav-pills small" id="onglets-pointages">
+                    {% for p in promos_bips %}
+                    <li class="nav-item"><button type="button" class="nav-link py-1 px-2" data-promo="{{ p }}">{{ p }}</button></li>
+                    {% endfor %}
+                    <li class="nav-item"><button type="button" class="nav-link py-1 px-2" data-promo="">Tous</button></li>
+                </ul>
+                {% endif %}
+            </div>
+            <ul class="list-group list-group-flush" id="liste-pointages">
+                {% for p, etudiant, promo in derniers %}
+                <li class="list-group-item d-flex justify-content-between align-items-center" data-promo="{{ promo }}">
+                    <div class="min-w-0">
+                        {% if etudiant %}
+                        <a href="/admin/etudiants/{{ etudiant.id }}" class="fw-semibold text-decoration-none text-reset">{{ etudiant.nom | upper }} {{ etudiant.prenom }}</a>
+                        {% else %}
+                        <span class="text-warning-emphasis"><i class="bi bi-question-circle"></i> Carte inconnue <span class="uid">{{ p.nfc_uid }}</span></span>
+                        {% endif %}
+                        <div class="small text-muted">{{ p.device_id }}{% if not p.id_seance %} · <span title="Aucun cours trouvé pour ce bip">hors cours</span>{% endif %}</div>
+                    </div>
+                    <div class="text-end small text-nowrap">
+                        <div class="fw-semibold">{{ p.timestamp | heure }}</div>
+                        <div class="text-muted">{{ p.timestamp.strftime('%d/%m') }}</div>
+                    </div>
+                </li>
+                {% else %}
+                <li class="list-group-item text-center text-muted py-4">Aucun pointage reçu pour l'instant.</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <!-- Boîtiers -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between">
+                <span><i class="bi bi-router me-1"></i>Boîtiers</span>
+                <a href="/admin/configuration#boitiers" class="small text-decoration-none">Gérer</a>
+            </div>
+            <ul class="list-group list-group-flush">
+                {% for b in boitiers %}
+                {% set en_ligne = b.derniere_synchro and b.derniere_synchro >= seuil_en_ligne %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="bi bi-circle-fill me-1 {{ 'text-success' if en_ligne else 'text-secondary' }}" style="font-size:.6rem"></i>
+                        <span class="fw-semibold">{{ b.device_id }}</span>
+                        <div class="small text-muted">{{ (b.professeur.nom ~ ' ' ~ b.professeur.prenom) if b.professeur else 'Aucun professeur' }}</div>
+                    </div>
+                    <span class="small text-muted text-end">{{ 'En ligne' if en_ligne else ('Vu le ' ~ (b.derniere_synchro | date_heure) if b.derniere_synchro else 'Jamais connecté') }}</span>
+                </li>
+                {% else %}
+                <li class="list-group-item text-center text-muted py-4">
+                    Aucun boîtier. <a href="/admin/configuration#boitiers">En ajouter un</a>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Onglets par année (BUT 1, BUT 2, BUT 3...) : n'affiche que les lignes de l'année choisie
+    // (au plus `max` lignes). Le choix est mémorisé.
+    function ongletsAnnee(idOnglets, idListe, cle, max) {
+        const onglets = document.querySelectorAll('#' + idOnglets + ' [data-promo]');
+        const lignes = document.querySelectorAll('#' + idListe + ' > [data-promo]');
+        function afficher(promo) {
+            onglets.forEach(o => o.classList.toggle('active', o.dataset.promo === promo));
+            let n = 0;
+            lignes.forEach(l => {
+                const visible = (promo === '' || l.dataset.promo === promo) && n < max;
+                if (visible) n++;
+                l.classList.toggle('d-none', !visible);
+            });
+        }
+        if (!onglets.length) { afficher(''); return; }
+        onglets.forEach(o => o.addEventListener('click', () => {
+            afficher(o.dataset.promo);
+            try { localStorage.setItem(cle, o.dataset.promo); } catch (e) {}
+        }));
+        let choix = null;
+        try { choix = localStorage.getItem(cle); } catch (e) {}
+        const existe = [...onglets].some(o => o.dataset.promo === choix);
+        const parDefaut = [...onglets].find(o => o.dataset.promo.startsWith('BUT')) || onglets[0];
+        afficher(existe ? choix : parDefaut.dataset.promo);
+    }
+    ongletsAnnee('onglets-cours', 'liste-cours', 'promo-cours', Infinity);
+    ongletsAnnee('onglets-pointages', 'liste-pointages', 'promo-pointages', 8);
+</script>
+{% endblock %}

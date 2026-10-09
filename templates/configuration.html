@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block titre %}Configuration{% endblock %}
+
+{% block contenu %}
+<div class="mb-4">
+    <h1 class="h3 titre-page">Configuration</h1>
+    <div class="sous-titre">Boîtiers de pointage, salles, groupes et données personnelles</div>
+</div>
+
+<!-- Boîtiers -->
+<div class="card mb-4" id="boitiers">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-router me-1"></i>Boîtiers de pointage (Raspberry Pi)</span>
+        <span class="small text-muted fw-normal">En ligne = synchronisé il y a moins de {{ config.BOITIER_EN_LIGNE_MIN }} min</span>
+    </div>
+    <div class="card-body">
+        <p class="small text-muted">
+            Chaque boîtier est attribué à un professeur : un bip est rattaché au cours de ce professeur à cette heure-là.
+            La salle sert de repli si le professeur n'est pas reconnu dans l'emploi du temps.
+            Un boîtier <strong>SAE</strong> rattache chaque bip à la séance de SAE du groupe de l'étudiant,
+            quels que soient la salle et le professeur (professeur et salle inutiles).
+            Le <strong>token</strong> se recopie dans le fichier <code>.env</code> du boîtier (<code>API_TOKEN=…</code>).
+        </p>
+        <form action="/admin/configuration/boitiers/ajouter" method="post" class="row g-2 mb-3">
+            <div class="col-md-3"><input type="text" class="form-control" name="device_id" placeholder="Identifiant (ex : RPI-001)" maxlength="32" required></div>
+            <div class="col-md-1 d-flex align-items-center">
+                <div class="form-check mb-0" title="Rattache les bips aux séances de SAE">
+                    <input class="form-check-input" type="checkbox" name="mode_sae" value="1" id="nouveau-sae">
+                    <label class="form-check-label" for="nouveau-sae">SAE</label>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" name="id_prof">
+                    <option value="">Professeur…</option>
+                    {% for p in professeurs %}<option value="{{ p.id }}">{{ p.nom | upper }} {{ p.prenom }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" name="id_salle">
+                    <option value="">Salle de repli…</option>
+                    {% for s in salles %}<option value="{{ s.id }}">{{ s.nom_salle }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2"><button type="submit" class="btn btn-primary bg-iut border-0 w-100"><i class="bi bi-plus-lg me-1"></i>Ajouter</button></div>
+        </form>
+
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead><tr><th>Boîtier</th><th>SAE</th><th>Professeur</th><th>Salle de repli</th><th>Token</th><th class="text-end">Actions</th></tr></thead>
+                <tbody>
+                    {% for b in boitiers %}
+                    {% set en_ligne = b.derniere_synchro and b.derniere_synchro >= en_ligne_depuis %}
+                    <tr>
+                        <td>
+                            <div class="fw-semibold"><i class="bi bi-circle-fill me-1 {{ 'text-success' if en_ligne else 'text-secondary' }}" style="font-size:.6rem"></i>{{ b.device_id }}</div>
+                            <div class="small text-muted">{{ 'En ligne' if en_ligne else ('Vu le ' ~ (b.derniere_synchro | date_heure) if b.derniere_synchro else 'Jamais connecté') }}</div>
+                            <form action="/admin/configuration/boitiers/{{ b.device_id }}/modifier" method="post" id="f-boitier-{{ loop.index }}"></form>
+                        </td>
+                        <td>
+                            <input class="form-check-input" type="checkbox" name="mode_sae" value="1" form="f-boitier-{{ loop.index }}"
+                                   title="Rattache les bips aux séances de SAE" {% if b.mode_sae %}checked{% endif %}>
+                        </td>
+                        <td>
+                            <select class="form-select form-select-sm" name="id_prof" form="f-boitier-{{ loop.index }}">
+                                <option value="">Aucun</option>
+                                {% for p in professeurs %}<option value="{{ p.id }}" {% if b.id_prof == p.id %}selected{% endif %}>{{ p.nom | upper }} {{ p.prenom }}</option>{% endfor %}
+                            </select>
+                        </td>
+                        <td>
+                            <select class="form-select form-select-sm" name="id_salle" form="f-boitier-{{ loop.index }}">
+                                <option value="">Aucune</option>
+                                {% for s in salles %}<option value="{{ s.id }}" {% if b.id_salle == s.id %}selected{% endif %}>{{ s.nom_salle }}</option>{% endfor %}
+                            </select>
+                        </td>
+                        <td>
+                            <div class="input-group input-group-sm" style="max-width: 300px">
+                                <input type="text" class="form-control uid" value="{{ b.token }}" readonly id="token-{{ loop.index }}">
+                                <button class="btn btn-outline-secondary" type="button" title="Copier"
+                                        onclick="navigator.clipboard.writeText(document.getElementById('token-{{ loop.index }}').value);this.innerHTML='<i class=\'bi bi-check-lg\'></i>'"><i class="bi bi-clipboard"></i></button>
+                            </div>
+                        </td>
+                        <td class="text-end text-nowrap">
+                            <button type="submit" form="f-boitier-{{ loop.index }}" class="btn btn-sm btn-outline-primary" title="Enregistrer"><i class="bi bi-check-lg"></i></button>
+                            <form action="/admin/configuration/boitiers/{{ b.device_id }}/nouveau-token" method="post" class="d-inline"
+                                  data-confirmer="Générer un nouveau token ? Il faudra le recopier sur le boîtier.">
+                                <button class="btn btn-sm btn-outline-warning" title="Nouveau token"><i class="bi bi-key"></i></button>
+                            </form>
+                            <form action="/admin/configuration/boitiers/{{ b.device_id }}/supprimer" method="post" class="d-inline"
+                                  data-confirmer="Supprimer le boîtier {{ b.device_id }} ? Il ne pourra plus envoyer de pointages.">
+                                <button class="btn btn-sm btn-outline-danger" title="Supprimer"><i class="bi bi-trash"></i></button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="6" class="text-center text-muted py-4">Aucun boîtier. Un boîtier non enregistré ne peut pas envoyer de pointages.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <!-- Salles -->
+    <div class="col-lg-6" id="salles">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-door-open me-1"></i>Salles</div>
+            <div class="card-body">
+                <form action="/admin/configuration/salles/ajouter" method="post" class="input-group mb-3">
+                    <input type="text" class="form-control" name="nom_salle" placeholder="Nouvelle salle (ex : B101)" maxlength="32" required>
+                    <button class="btn btn-outline-primary" type="submit"><i class="bi bi-plus-lg"></i> Ajouter</button>
+                </form>
+                <div class="overflow-auto" style="max-height: 320px">
+                    {% for s in salles %}
+                    <div class="d-flex gap-2 mb-2">
+                        <form action="/admin/configuration/salles/{{ s.id }}/modifier" method="post" class="input-group input-group-sm m-0">
+                            <input type="text" class="form-control" name="nom_salle" value="{{ s.nom_salle }}" maxlength="32" required>
+                            <button class="btn btn-outline-secondary" type="submit" title="Renommer"><i class="bi bi-check-lg"></i></button>
+                        </form>
+                        <form action="/admin/configuration/salles/{{ s.id }}/supprimer" method="post" class="m-0"
+                              data-confirmer="Supprimer la salle {{ s.nom_salle }} et les cours qui y ont lieu ?">
+                            <button class="btn btn-sm btn-outline-danger" title="Supprimer"><i class="bi bi-trash"></i></button>
+                        </form>
+                    </div>
+                    {% else %}
+                    <div class="text-muted small text-center py-3">Aucune salle.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Groupes -->
+    <div class="col-lg-6" id="groupes">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-diagram-3 me-1"></i>Groupes</div>
+            <div class="card-body">
+                <form action="/admin/configuration/groupes/ajouter" method="post" class="input-group mb-3">
+                    <input type="text" class="form-control" name="nom_groupe" placeholder="Nouveau groupe (ex : BUT3-TD1)" maxlength="16" required>
+                    <button class="btn btn-outline-primary" type="submit"><i class="bi bi-plus-lg"></i> Ajouter</button>
+                </form>
+                <div class="overflow-auto" style="max-height: 320px">
+                    {% for promo, liste in groupes.items() %}
+                    <div class="small text-muted fw-semibold mt-2 mb-1">{{ promo }}</div>
+                    {% for g in liste %}
+                    <div class="d-flex gap-2 mb-2 align-items-center">
+                        <form action="/admin/configuration/groupes/{{ g.id }}/modifier" method="post" class="input-group input-group-sm m-0">
+                            <input type="text" class="form-control" name="nom_groupe" value="{{ g.nom_groupe }}" maxlength="16" required>
+                            <span class="input-group-text" title="Étudiants inscrits"><i class="bi bi-people me-1"></i>{{ effectifs.get(g.id, 0) }}</span>
+                            <button class="btn btn-outline-secondary" type="submit" title="Renommer"><i class="bi bi-check-lg"></i></button>
+                        </form>
+                        <form action="/admin/configuration/groupes/{{ g.id }}/supprimer" method="post" class="m-0"
+                              data-confirmer="Supprimer le groupe {{ g.nom_groupe }} et ses cours ? Les étudiants sont conservés.">
+                            <button class="btn btn-sm btn-outline-danger" title="Supprimer"><i class="bi bi-trash"></i></button>
+                        </form>
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <div class="text-muted small text-center py-3">Aucun groupe.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Règles et RGPD -->
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-sliders me-1"></i>Règles de présence</div>
+            <div class="card-body small">
+                <ul class="mb-2">
+                    <li>Pointage accepté à partir de <strong>{{ config.AVANCE_POINTAGE_MIN }} min</strong> avant le début du cours.</li>
+                    <li>« En retard » après <strong>{{ config.TOLERANCE_RETARD_MIN }} min</strong> ; aucun bip = « Absent ».</li>
+                    <li>Synchro EDT : <strong>{{ config.ICAL_SEMAINES }} semaine(s)</strong> à partir de la semaine en cours.</li>
+                </ul>
+                <div class="text-muted">Modifiables dans le fichier <code>.env</code> du serveur
+                    (<code>AVANCE_POINTAGE_MIN</code>, <code>RETARD_TOLERANCE_MIN</code>, <code>ICAL_SEMAINES</code>).</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6" id="rgpd">
+        <div class="card h-100 border-danger-subtle">
+            <div class="card-header text-danger"><i class="bi bi-shield-lock me-1"></i>Purge RGPD de fin d'année</div>
+            <div class="card-body">
+                <p class="small text-muted">Supprime définitivement les pointages antérieurs à la date choisie ({{ nb_pointages }} pointage(s) en base).</p>
+                <form action="/admin/configuration/rgpd/purge" method="post" class="input-group"
+                      data-confirmer="Supprimer définitivement ces pointages ? Cette action est irréversible.">
+                    <input type="date" name="avant" class="form-control" required>
+                    <button type="submit" class="btn btn-danger"><i class="bi bi-trash me-1"></i>Purger</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

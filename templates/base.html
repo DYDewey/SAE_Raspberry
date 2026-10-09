@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block titre %}Pointage IUT{% endblock %} · Pointage IUT</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="/static/css/app.css" rel="stylesheet">
+    {% block head %}{% endblock %}
+</head>
+<body>
+
+{% if admin %}
+<nav class="navbar navbar-expand-lg navbar-dark bg-iut sticky-top shadow-sm">
+    <div class="container-fluid px-lg-4">
+        <a class="navbar-brand d-flex align-items-center gap-2" href="/admin">
+            <span class="logo-badge"><i class="bi bi-broadcast-pin"></i></span>
+            <span class="fw-semibold">Pointage IUT</span>
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#menu" aria-label="Menu">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="menu">
+            <ul class="navbar-nav me-auto">
+                {% set liens = [
+                    ("accueil", "/admin", "speedometer2", "Tableau de bord"),
+                    ("edt", "/admin/edt", "calendar-week", "Emploi du temps"),
+                    ("etudiants", "/admin/etudiants", "people", "Étudiants"),
+                    ("absences", "/admin/absences", "clipboard-data", "Absences"),
+                    ("professeurs", "/admin/professeurs", "person-badge", "Professeurs"),
+                    ("configuration", "/admin/configuration", "gear", "Configuration"),
+                ] %}
+                {% for cle, url, icone, texte in liens %}
+                <li class="nav-item">
+                    <a class="nav-link {% if actif == cle %}active{% endif %}" href="{{ url }}">
+                        <i class="bi bi-{{ icone }} me-1"></i>{{ texte }}
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+            <form action="/logout" method="post" class="d-flex align-items-center gap-2 m-0">
+                <span class="text-white-50 small d-none d-lg-inline"><i class="bi bi-person-circle me-1"></i>{{ admin }}</span>
+                <button class="btn btn-sm btn-outline-light" type="submit"><i class="bi bi-box-arrow-right me-1"></i>Déconnexion</button>
+            </form>
+        </div>
+    </div>
+</nav>
+{% if mot_de_passe_par_defaut %}
+<div class="alert alert-warning rounded-0 mb-0 py-2 small text-center">
+    <i class="bi bi-exclamation-triangle me-1"></i>
+    Mot de passe par défaut (admin / admin) : définissez <code>ADMIN_USER</code>, <code>ADMIN_PASSWORD</code> et <code>SECRET_KEY</code> dans le fichier <code>.env</code>.
+</div>
+{% endif %}
+{% endif %}
+
+<main class="{% block conteneur %}container-xl{% endblock %} py-4">
+    {% block contenu %}{% endblock %}
+</main>
+
+<!-- Messages de confirmation -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+    {% for m in messages %}
+    <div class="toast align-items-center text-bg-{{ m.categorie }} border-0" role="alert" data-bs-delay="{{ 8000 if m.categorie == 'danger' else 5000 }}">
+        <div class="d-flex">
+            <div class="toast-body">{{ m.message }}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Fermer"></button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    document.querySelectorAll('.toast').forEach(t => new bootstrap.Toast(t).show());
+    // Boutons de suppression : demande de confirmation (attribut data-confirmer)
+    document.addEventListener('submit', e => {
+        const msg = e.target.dataset.confirmer;
+        if (msg && !confirm(msg)) e.preventDefault();
+    });
+    {% if admin %}
+    // Tant qu'une page du site est ouverte, on garde la session active (toutes les 5 min).
+    // Navigateur fermé : plus de signal, la session expire après le délai d'inactivité.
+    setInterval(async () => {
+        try {
+            const r = await fetch('/admin/ping');
+            if (r.status === 401) {
+                window.location.href = '/login?suivant=' + encodeURIComponent(location.pathname + location.search);
+            }
+        } catch (e) {}                                   // serveur momentanément injoignable
+    }, 5 * 60 * 1000);
+    {% endif %}
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

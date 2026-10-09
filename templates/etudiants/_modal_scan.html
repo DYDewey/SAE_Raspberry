@@ -1,0 +1,65 @@
+<!-- Fenêtre "Scanner la carte" : attend qu'une carte soit passée sur le boîtier choisi -->
+<div class="modal fade" id="modal-scan" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text"><i class="bi bi-router me-1"></i>Boîtier</span>
+                    <select class="form-select" id="scan-boitier" {% if not boitiers_scan %}disabled{% endif %}>
+                        {% for b in boitiers_scan %}
+                        <option value="{{ b.id }}" {% if b.id == boitier_scan %}selected{% endif %}>
+                            {{ b.id }}{% if b.prof %} ({{ b.prof }}){% else %} (enrôlement){% endif %} · {{ "en ligne" if b.en_ligne else "hors ligne" }}
+                        </option>
+                        {% else %}
+                        <option>Aucun boîtier configuré</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="modal-body text-center p-5 pt-4">
+                <!-- En attente -->
+                <div data-etat="attente">
+                    <div class="scan-onde mx-auto mb-4"><i class="bi bi-credit-card-2-front"></i></div>
+                    <h5 class="fw-bold mb-1">Passez la carte sur le boîtier <span data-champ="boitier"></span></h5>
+                    <p class="text-muted mb-3">pour <strong data-champ="nom"></strong></p>
+                    <div class="small text-muted">En attente… <span data-champ="restant">60</span> s</div>
+                    <div class="small text-muted mt-2">Seuls les bips de ce boîtier sont pris en compte.</div>
+                    <div class="alert alert-warning small text-start mt-3 mb-0" data-champ="alerte" hidden></div>
+                </div>
+                <!-- Carte reçue -->
+                <div data-etat="trouve" hidden>
+                    <div class="display-4 text-success mb-3"><i class="bi bi-check-circle-fill"></i></div>
+                    <h5 class="fw-bold mb-1">Carte détectée</h5>
+                    <p class="uid fs-5 mb-1" data-champ="uid"></p>
+                    <p class="small text-muted mb-0" data-champ="message"></p>
+                </div>
+                <!-- Carte déjà attribuée à quelqu'un d'autre -->
+                <div data-etat="conflit" hidden>
+                    <div class="display-4 text-warning mb-3"><i class="bi bi-exclamation-triangle-fill"></i></div>
+                    <h5 class="fw-bold mb-1">Carte déjà attribuée</h5>
+                    <p class="uid fs-5 mb-1" data-champ="uid-conflit"></p>
+                    <p class="mb-0">Cette carte appartient à <strong data-champ="proprietaire"></strong>.<br>
+                        <span class="small text-muted">La lui retirer pour l'attribuer à <span data-champ="nom2"></span> ?</span></p>
+                </div>
+                <!-- Session expirée -->
+                <div data-etat="deconnecte" hidden>
+                    <div class="display-4 text-secondary mb-3"><i class="bi bi-lock"></i></div>
+                    <h5 class="fw-bold mb-1">Session expirée</h5>
+                    <p class="small text-muted mb-0">Reconnectez-vous, puis relancez le scan.</p>
+                </div>
+                <!-- Délai dépassé / erreur -->
+                <div data-etat="expire" hidden>
+                    <div class="display-4 text-warning mb-3"><i class="bi bi-hourglass-bottom"></i></div>
+                    <h5 class="fw-bold mb-1">Aucune carte reçue</h5>
+                    <p class="small text-muted mb-0">Vérifiez que le boîtier choisi est en ligne (LED bleue fixe), puis réessayez.</p>
+                </div>
+            </div>
+            <div class="modal-footer justify-content-center border-0 pt-0 pb-4">
+                <button type="button" class="btn btn-light" data-action="annuler">Annuler</button>
+                <button type="button" class="btn btn-primary bg-iut border-0" data-action="reessayer" hidden>Réessayer</button>
+                <button type="button" class="btn btn-primary bg-iut border-0" data-action="reconnecter" hidden>Se reconnecter</button>
+                <button type="button" class="btn btn-warning" data-action="forcer" hidden>Attribuer quand même</button>
+            </div>
+        </div>
+    </div>
+</div>

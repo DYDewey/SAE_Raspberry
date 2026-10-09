@@ -1,0 +1,16 @@
+[Unit]
+Description=Boitier de pointage NFC
+# Démarre sans attendre le réseau : les pointages sont stockés en local
+After=local-fs.target time-sync.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/boitier
+ExecStart=/home/pi/boitier/venv/bin/python /home/pi/boitier/boitier.py
+Restart=always
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

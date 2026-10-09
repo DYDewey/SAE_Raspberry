@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block titre %}Professeurs{% endblock %}
+
+{% block contenu %}
+<div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-4">
+    <div>
+        <h1 class="h3 titre-page">Professeurs</h1>
+        <div class="sous-titre">{{ professeurs | length }} professeur(s) · importés automatiquement depuis l'emploi du temps</div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr><th>Nom</th><th class="text-center">Cours importés</th><th>Boîtier attitré</th><th class="text-end">Actions</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for p in professeurs %}
+                        <tr>
+                            <td class="fw-semibold">{{ p.nom | upper }} {{ p.prenom }}</td>
+                            <td class="text-center">
+                                {% if nb_cours.get(p.id) %}<a href="/admin/edt?groupe=0&prof={{ p.id }}" class="text-decoration-none">{{ nb_cours[p.id] }} <i class="bi bi-calendar-week"></i></a>{% else %}<span class="text-muted">0</span>{% endif %}
+                            </td>
+                            <td>
+                                {% for d in boitiers.get(p.id, []) %}<span class="badge text-bg-light border me-1"><i class="bi bi-router me-1"></i>{{ d }}</span>
+                                {% else %}<a href="/admin/configuration#boitiers" class="small text-muted text-decoration-none">Attribuer un boîtier</a>{% endfor %}
+                            </td>
+                            <td class="text-end">
+                                <form action="/admin/professeurs/{{ p.id }}/supprimer" method="post" class="d-inline"
+                                      data-confirmer="Supprimer {{ p.prenom }} {{ p.nom }} et tous ses cours de l'emploi du temps ?">
+                                    <button class="btn btn-sm btn-outline-danger" title="Supprimer"><i class="bi bi-trash"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="4" class="text-center text-muted py-5">Aucun professeur. Synchronisez l'emploi du temps ou ajoutez-en un.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <form class="card" method="post" action="/admin/professeurs/ajouter">
+            <div class="card-header"><i class="bi bi-person-plus me-1"></i>Ajouter un professeur</div>
+            <div class="card-body">
+                <div class="mb-2"><input type="text" class="form-control" name="nom" placeholder="Nom" required></div>
+                <div class="mb-3"><input type="text" class="form-control" name="prenom" placeholder="Prénom" required></div>
+                <button class="btn btn-primary bg-iut border-0 w-100" type="submit">Ajouter</button>
+                <div class="form-text">Le nom doit correspondre à celui de l'emploi du temps pour que ses cours lui soient rattachés.</div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

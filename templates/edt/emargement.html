@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block titre %}Émargement {{ bloc.code }}{% endblock %}
+
+{% block contenu %}
+<nav aria-label="fil d'Ariane" class="mb-3">
+    <ol class="breadcrumb small mb-0">
+        <li class="breadcrumb-item"><a href="/admin/edt?semaine={{ bloc.debut.strftime('%Y-%m-%d') }}">Emploi du temps</a></li>
+        <li class="breadcrumb-item active">Émargement</li>
+    </ol>
+</nav>
+<div class="row justify-content-center">
+    <div class="col-lg-9">
+        <div class="card">
+            <div class="card-body p-4">
+                {% include "edt/_emargements.html" %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

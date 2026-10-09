@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% from "_macros.html" import select_classe %}
+{% block titre %}Étudiants{% endblock %}
+
+{% block contenu %}
+<div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-4">
+    <div>
+        <h1 class="h3 titre-page">Étudiants</h1>
+        <div class="sous-titre">{{ total }} étudiant(s) · {{ total_sans_carte }} sans carte</div>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modal-import">
+            <i class="bi bi-file-earmark-arrow-up me-1"></i>Importer un fichier Excel
+        </button>
+        <a href="/admin/etudiants/nouveau" class="btn btn-primary bg-iut border-0"><i class="bi bi-person-plus me-1"></i>Ajouter</a>
+    </div>
+</div>
+
+<!-- Filtres -->
+<form class="card mb-3" method="get">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-4">{{ select_classe(groupes, groupe_choisi) }}</div>
+            <div class="col-md-5">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="Nom, prénom ou numéro…">
+                </div>
+            </div>
+            <div class="col-md-3 d-flex align-items-center justify-content-between">
+                <div class="form-check form-switch m-0">
+                    <input class="form-check-input" type="checkbox" role="switch" id="sans_carte" name="sans_carte" value="true"
+                           {% if sans_carte %}checked{% endif %} onchange="this.form.submit()">
+                    <label class="form-check-label" for="sans_carte">Sans carte</label>
+                </div>
+                <button class="btn btn-outline-secondary btn-sm" type="submit">Filtrer</button>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Étudiant</th>
+                    <th>N° étudiant</th>
+                    <th>Groupes</th>
+                    <th style="width: 240px">Carte NFC</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in etudiants %}
+                <tr>
+                    <td><a href="/admin/etudiants/{{ e.id }}" class="fw-semibold text-decoration-none">{{ e.nom | upper }} {{ e.prenom }}</a></td>
+                    <td class="text-muted">{{ e.numero_etudiant }}</td>
+                    <td>
+                        {% for g in e.groupes | sort(attribute="nom_groupe") %}<span class="badge text-bg-light border me-1">{{ g.nom_groupe }}</span>{% else %}<span class="text-muted small">—</span>{% endfor %}
+                    </td>
+                    <td>
+                        {% if e.carte %}
+                        <div class="d-flex align-items-center gap-1">
+                            <span class="badge text-bg-success-subtle text-success-emphasis border border-success-subtle uid px-2 py-1">
+                                <i class="bi bi-credit-card-2-front me-1"></i>{{ e.carte.nfc_uid }}
+                            </span>
+                            <button type="button" class="btn btn-sm btn-link text-decoration-none p-0 ms-1"
+                                    data-scan="{{ e.id }}" data-nom="{{ e.prenom }} {{ e.nom }}" title="Scanner une autre carte">
+                                <i class="bi bi-arrow-repeat"></i>
+                            </button>
+                            <form action="/admin/etudiants/{{ e.id }}/carte" method="post" class="d-inline m-0"
+                                  data-confirmer="Retirer la carte de {{ e.prenom }} {{ e.nom }} ?">
+                                <input type="hidden" name="nfc_uid" value="">
+                                <input type="hidden" name="retour" value="{{ request.url.path }}?{{ request.url.query }}">
+                                <button class="btn btn-sm btn-link text-danger text-decoration-none p-0" title="Retirer la carte"><i class="bi bi-x-circle"></i></button>
+                            </form>
+                        </div>
+                        {% else %}
+                        <button type="button" class="btn btn-sm btn-outline-primary" data-scan="{{ e.id }}" data-nom="{{ e.prenom }} {{ e.nom }}">
+                            <i class="bi bi-broadcast me-1"></i>Scanner la carte
+                        </button>
+                        {% endif %}
+                    </td>
+                    <td class="text-end text-nowrap">
+                        <a href="/admin/etudiants/{{ e.id }}" class="btn btn-sm btn-outline-secondary" title="Suivi des présences"><i class="bi bi-graph-up"></i></a>
+                        <a href="/admin/etudiants/{{ e.id }}/modifier" class="btn btn-sm btn-outline-primary" title="Modifier"><i class="bi bi-pencil"></i></a>
+                        <form action="/admin/etudiants/{{ e.id }}/supprimer" method="post" class="d-inline"
+                              data-confirmer="Supprimer {{ e.prenom }} {{ e.nom }} ? Sa carte sera aussi supprimée.">
+                            <button class="btn btn-sm btn-outline-danger" title="Supprimer"><i class="bi bi-trash"></i></button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="text-center text-muted py-5">
+                    <i class="bi bi-people fs-2 d-block mb-2"></i>Aucun étudiant ne correspond.
+                    {% if not total %}<div class="small">Commencez par importer le fichier Excel de la scolarité.</div>{% endif %}
+                </td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Fenêtre d'import Excel -->
+<div class="modal fade" id="modal-import" tabindex="-1">
+    <div class="modal-dialog">
+        <form class="modal-content" action="/admin/etudiants/import" method="post" enctype="multipart/form-data">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-file-earmark-excel me-1"></i>Importer des étudiants</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted">Fichier Excel (.xlsx) avec les colonnes :</p>
+                <table class="table table-sm table-bordered small mb-3">
+                    <thead><tr><th>numero</th><th>nom</th><th>prenom</th><th>groupe <span class="fw-normal">(facultatif)</span></th></tr></thead>
+                    <tbody><tr><td>22301234</td><td>Dupont</td><td>Thomas</td><td>BUT3, BUT3-TD1</td></tr></tbody>
+                </table>
+                <p class="small text-muted">Les étudiants déjà présents (même numéro) ne sont pas dupliqués : leurs nouveaux groupes sont ajoutés.</p>
+                <input type="file" name="fichier" class="form-control" accept=".xlsx,.xls" required>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+                <button type="submit" class="btn btn-primary bg-iut border-0">Importer</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% include "etudiants/_modal_scan.html" %}
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/scan.js"></script>
+{% endblock %}

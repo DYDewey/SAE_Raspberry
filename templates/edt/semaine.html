@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% from "_macros.html" import select_classe, classe_taux %}
+{% block titre %}Emploi du temps{% endblock %}
+{% block conteneur %}container-fluid px-lg-4{% endblock %}
+
+{% block contenu %}
+{% set filtres = "&groupe=" ~ (groupe_choisi.id if groupe_choisi else 0) ~ ("&prof=" ~ prof_choisi if prof_choisi else "") ~ ("&salle=" ~ salle_choisie if salle_choisie else "") %}
+
+<!-- En-tête : semaine + navigation -->
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+    <div>
+        <h1 class="h3 titre-page">
+            {% if groupe_choisi %}{{ groupe_choisi.nom_groupe }}{% else %}Emploi du temps{% endif %}
+        </h1>
+        <div class="sous-titre">
+            Semaine {{ numero_semaine }} · du {{ lundi.strftime('%d/%m') }} au {{ dimanche.strftime('%d/%m/%Y') }}
+            · {{ nb_cours }} cours
+        </div>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <div class="btn-group">
+            <a class="btn btn-outline-secondary" href="?semaine={{ semaine_prec }}{{ filtres }}" title="Semaine précédente"><i class="bi bi-chevron-left"></i></a>
+            <a class="btn btn-outline-secondary" href="?{{ filtres[1:] }}">Aujourd'hui</a>
+            <a class="btn btn-outline-secondary" href="?semaine={{ semaine_suiv }}{{ filtres }}" title="Semaine suivante"><i class="bi bi-chevron-right"></i></a>
+        </div>
+        <form action="/admin/edt/synchroniser" method="post" class="m-0">
+            <button class="btn btn-primary bg-iut border-0" type="submit" onclick="this.disabled=true;this.innerHTML='<span class=\'spinner-border spinner-border-sm me-1\'></span>Synchronisation…';this.form.submit()">
+                <i class="bi bi-arrow-repeat me-1"></i>Synchroniser l'EDT
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Filtres -->
+<form class="card mb-3" method="get">
+    <input type="hidden" name="semaine" value="{{ lundi.strftime('%Y-%m-%d') }}">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-4 choix-classe">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-people-fill"></i></span>
+                    {{ select_classe(groupes, groupe_choisi.id if groupe_choisi else None) }}
+                </div>
+            </div>
+            <div class="col-md-3">
+                <select name="prof" class="form-select" onchange="this.form.submit()">
+                    <option value="0">Tous les professeurs</option>
+                    {% for p in professeurs if p.nom != "N/A" %}
+                    <option value="{{ p.id }}" {% if prof_choisi == p.id %}selected{% endif %}>{{ p.nom }} {{ p.prenom }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select name="salle" class="form-select" onchange="this.form.submit()">
+                    <option value="0">Toutes les salles</option>
+                    {% for s in salles %}
+                    <option value="{{ s.id }}" {% if salle_choisie == s.id %}selected{% endif %}>{{ s.nom_salle }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2 text-md-end">
+                {% if prof_choisi or salle_choisie %}
+                <a class="btn btn-link btn-sm text-decoration-none" href="?semaine={{ lundi.strftime('%Y-%m-%d') }}&groupe={{ groupe_choisi.id if groupe_choisi else 0 }}">
+                    <i class="bi bi-x-circle me-1"></i>Effacer les filtres
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        {% if groupe_choisi %}
+        <div class="form-text mt-1">Les cours communs de la promo (CM) et des sous-groupes sont inclus.
+            {% if classe_entiere %}
+            <a href="?semaine={{ lundi.strftime('%Y-%m-%d') }}&groupe={{ classe_entiere.id }}" class="fw-semibold ms-1">
+                Afficher toute la classe {{ classe_entiere.nom_groupe }} →</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</form>
+
+{% if not groupe_choisi and nb_cours > 25 %}
+<div class="alert alert-info py-2 small"><i class="bi bi-info-circle me-1"></i>Choisissez une classe pour un affichage plus lisible.</div>
+{% endif %}
+
+<!-- Grille -->
+<div class="card overflow-hidden">
+    <div class="edt-scroll">
+        <div class="edt" style="--nb-jours: {{ jours | length }}; --px-heure: {{ px_heure }}px;">
+            <div class="edt-entete"></div>
+            {% for j in jours %}
+            <div class="edt-entete {% if j.aujourdhui %}aujourdhui{% endif %}">
+                {{ j.titre.split(' ')[0] }}
+                <span class="date">{{ j.date.strftime('%d/%m') }}</span>
+            </div>
+            {% endfor %}
+
+            <div class="edt-heures" style="height: {{ hauteur_grille }}px">
+                {% for h in heures %}
+                <div class="edt-heure {% if loop.first %}premiere{% endif %}" style="top: {{ loop.index0 * px_heure }}px">{{ h }}h</div>
+                {% endfor %}
+            </div>
+
+            {% for j in jours %}
+            <div class="edt-jour {% if j.aujourdhui %}aujourdhui{% endif %}" style="height: {{ hauteur_grille }}px">
+                {% if j.aujourdhui and ligne_maintenant is not none %}
+                <div class="edt-maintenant" style="top: {{ ligne_maintenant }}px" title="Maintenant"></div>
+                {% endif %}
+                {% for c in j.cours %}
+                {% set b, r = c.bloc, c.resume %}
+                <div class="cours" style="top: {{ c.top }}px; height: {{ c.hauteur }}px; left: {{ c.gauche }}%; width: {{ c.largeur }}%;">
+                    <div class="cours-carte" style="background: {{ c.fond }}; border-color: {{ c.bordure }};"
+                         data-seance="{{ b.id }}" data-avec="{{ c.ids }}" role="button" tabindex="0"
+                         title="{{ b.libelle }} · {{ b.debut.strftime('%H:%M') }}-{{ b.fin.strftime('%H:%M') }} · {{ b.nom_salle }}{% if b.nom_prof %} · {{ b.nom_prof }}{% endif %} · {{ c.groupes }}">
+                        <div class="code" style="color: {{ c.bordure }}">
+                            {% if r.etat == "en_cours" %}<span class="en-cours-pastille"></span>{% endif %}
+                            {{ b.debut.strftime('%H:%M') }}–{{ b.fin.strftime('%H:%M') }}
+                        </div>
+                        <div class="lib fw-semibold">{{ b.libelle }}</div>
+                        <div class="meta"><i class="bi bi-geo-alt"></i> {{ b.nom_salle }}</div>
+                        {% if c.hauteur > 115 %}<div class="meta"><i class="bi bi-people"></i> {{ c.groupes }}</div>{% endif %}
+                        {% if c.hauteur > 130 and b.nom_prof %}<div class="meta"><i class="bi bi-person"></i> {{ b.nom_prof }}</div>{% endif %}
+                        {% if r.etat == "a_venir" %}
+                            <span class="presence text-secondary"><i class="bi bi-people"></i> {{ r.effectif }}</span>
+                        {% else %}
+                            <span class="presence {{ classe_taux(c.taux) }}">
+                                <i class="bi bi-person-check"></i> {{ r.present + r.retard }}/{{ r.effectif }}
+                            </span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+{% if nb_cours == 0 %}
+<div class="text-center text-muted py-4">
+    <i class="bi bi-calendar-x fs-2 d-block mb-2"></i>
+    Aucun cours cette semaine{% if groupe_choisi %} pour {{ groupe_choisi.nom_groupe }}{% endif %}.
+    <div class="small">Si l'emploi du temps n'a pas encore été importé, cliquez sur « Synchroniser l'EDT ».</div>
+</div>
+{% endif %}
+
+<!-- Légende -->
+<div class="d-flex flex-wrap gap-3 small text-muted mt-2">
+    <span><span class="presence bon fw-bold">18/20</span> présents / inscrits</span>
+    <span><span class="presence text-secondary fw-bold"><i class="bi bi-people"></i> 20</span> cours à venir</span>
+    <span><span class="en-cours-pastille"></span>en cours</span>
+    <span>Retard compté après {{ TOLERANCE_RETARD_MIN }} min · cliquez sur un cours pour voir l'émargement</span>
+</div>
+
+<!-- Panneau latéral : émargement du cours cliqué -->
+<div class="offcanvas offcanvas-end panneau-emargement" tabindex="-1" id="panneau">
+    <div class="offcanvas-header border-bottom">
+        <h5 class="offcanvas-title"><i class="bi bi-list-check me-1"></i>Émargement</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Fermer"></button>
+    </div>
+    <div class="offcanvas-body" id="panneau-contenu"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/edt.js"></script>
+{% endblock %}

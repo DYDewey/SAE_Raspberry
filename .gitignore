@@ -1,0 +1,34 @@
+# --- Secrets : ne JAMAIS les pousser ---
+.env
+.env.*
+!.env.example
+.secret_key
+*.pem
+*.key
+
+# --- Environnements Python ---
+venv/
+.venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache/
+
+# --- Bases locales / logs ---
+*.db
+pointages*.db*
+*.db-wal
+*.db-shm
+*.sqlite3
+*.log
+
+# --- Éditeurs / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

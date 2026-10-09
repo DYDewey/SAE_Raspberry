@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% from "_macros.html" import select_classe, barre, classe_taux %}
+{% block titre %}Suivi des absences{% endblock %}
+
+{% block contenu %}
+<div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-4">
+    <div>
+        <h1 class="h3 titre-page">Suivi des absences</h1>
+        <div class="sous-titre">Du {{ du[8:10] }}/{{ du[5:7] }}/{{ du[:4] }} au {{ au[8:10] }}/{{ au[5:7] }}/{{ au[:4] }} · cours terminés, et cours en cours pour ceux qui ont déjà badgé</div>
+    </div>
+    <a class="btn btn-success" href="/admin/absences/export?groupe={{ groupe_choisi or 0 }}&du={{ du }}&au={{ au }}"><i class="bi bi-file-earmark-excel me-1"></i>Exporter en Excel</a>
+</div>
+
+<form class="card mb-3" method="get">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-4">{{ select_classe(groupes, groupe_choisi) }}</div>
+            <div class="col-auto ms-md-auto small text-muted">Du</div>
+            <div class="col-md-2"><input type="date" name="du" value="{{ du }}" class="form-control"></div>
+            <div class="col-auto small text-muted">au</div>
+            <div class="col-md-2"><input type="date" name="au" value="{{ au }}" class="form-control"></div>
+            <div class="col-auto"><button class="btn btn-outline-secondary" type="submit">Appliquer</button></div>
+        </div>
+    </div>
+</form>
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-md-3"><div class="card"><div class="card-body py-3"><div class="stat-libelle">Présence moyenne</div><div class="stat-valeur presence {{ classe_taux(taux_global) }}">{% if taux_global is not none %}{{ taux_global }} %{% else %}—{% endif %}</div></div></div></div>
+    <div class="col-6 col-md-3"><div class="card"><div class="card-body py-3"><div class="stat-libelle">Présences</div><div class="stat-valeur text-success">{{ total.present }}</div></div></div></div>
+    <div class="col-6 col-md-3"><div class="card"><div class="card-body py-3"><div class="stat-libelle">Retards</div><div class="stat-valeur" style="color:#9a7500">{{ total.retard }}</div></div></div></div>
+    <div class="col-6 col-md-3"><div class="card"><div class="card-body py-3"><div class="stat-libelle">Absences</div><div class="stat-valeur text-danger">{{ total.absent }}</div></div></div></div>
+</div>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Étudiant</th>
+                    <th class="text-center">Cours</th>
+                    <th class="text-center">Présences</th>
+                    <th class="text-center">Retards</th>
+                    <th class="text-center">Absences</th>
+                    <th style="width: 220px">Taux de présence</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for b in bilan %}
+                {% set e = b.etudiant %}
+                <tr>
+                    <td>
+                        <a href="/admin/etudiants/{{ e.id }}?du={{ du }}&au={{ au }}" class="fw-semibold text-decoration-none">{{ e.nom | upper }} {{ e.prenom }}</a>
+                        <div class="small text-muted">{{ e.numero_etudiant }}{% if not e.carte %} · <span class="text-warning-emphasis">sans carte</span>{% endif %}</div>
+                    </td>
+                    <td class="text-center">{{ b.cours }}</td>
+                    <td class="text-center text-success fw-semibold">{{ b.present }}</td>
+                    <td class="text-center fw-semibold" style="color:#9a7500">{{ b.retard }}</td>
+                    <td class="text-center fw-semibold {% if b.absent %}text-danger{% else %}text-muted{% endif %}">{{ b.absent }}</td>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="flex-grow-1">{{ barre(b.present, b.retard, b.absent) }}</div>
+                            <span class="small fw-semibold presence {{ classe_taux(b.taux) }}" style="min-width: 42px">{% if b.taux is not none %}{{ b.taux }} %{% else %}—{% endif %}</span>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="text-center text-muted py-5">Aucun étudiant dans cette classe.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

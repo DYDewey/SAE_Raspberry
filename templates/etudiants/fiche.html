@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% from "_macros.html" import statut, barre, classe_taux %}
+{% block titre %}{{ etudiant.nom | upper }} {{ etudiant.prenom }}{% endblock %}
+
+{% block contenu %}
+<nav class="mb-3">
+    <ol class="breadcrumb small mb-0">
+        <li class="breadcrumb-item"><a href="/admin/etudiants">Étudiants</a></li>
+        <li class="breadcrumb-item active">{{ etudiant.nom | upper }} {{ etudiant.prenom }}</li>
+    </ol>
+</nav>
+
+<div class="row g-4">
+    <!-- Identité -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-body p-4">
+                <div class="d-flex align-items-center gap-3 mb-3">
+                    <div class="stat-icone bg-primary-subtle text-primary fs-4 fw-bold">{{ etudiant.prenom[:1] }}{{ etudiant.nom[:1] }}</div>
+                    <div>
+                        <h1 class="h5 fw-bold mb-0">{{ etudiant.nom | upper }} {{ etudiant.prenom }}</h1>
+                        <div class="text-muted small">N° {{ etudiant.numero_etudiant }}</div>
+                    </div>
+                </div>
+                <dl class="mb-3 small">
+                    <dt class="text-muted fw-normal">Groupes</dt>
+                    <dd>{% for g in etudiant.groupes | sort(attribute="nom_groupe") %}<span class="badge text-bg-light border me-1">{{ g.nom_groupe }}</span>{% else %}—{% endfor %}</dd>
+                    <dt class="text-muted fw-normal">Carte NFC</dt>
+                    <dd>{% if etudiant.carte %}<span class="uid">{{ etudiant.carte.nfc_uid }}</span>{% else %}<span class="text-warning-emphasis"><i class="bi bi-exclamation-triangle"></i> Aucune carte : ses présences ne peuvent pas être enregistrées</span>{% endif %}</dd>
+                </dl>
+                <a href="/admin/etudiants/{{ etudiant.id }}/modifier" class="btn btn-outline-primary btn-sm w-100"><i class="bi bi-pencil me-1"></i>Modifier la fiche</a>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-body p-4">
+                <div class="text-muted small mb-1">Taux de présence</div>
+                <div class="display-6 fw-bold presence {{ classe_taux(taux) }} mb-2">{% if taux is not none %}{{ taux }} %{% else %}—{% endif %}</div>
+                {{ barre(compte["Présent"], compte["En retard"], compte["Absent"]) }}
+                <div class="row text-center mt-3 small">
+                    <div class="col"><div class="fs-5 fw-bold text-success">{{ compte["Présent"] }}</div>présences</div>
+                    <div class="col"><div class="fs-5 fw-bold" style="color:#9a7500">{{ compte["En retard"] }}</div>retards</div>
+                    <div class="col"><div class="fs-5 fw-bold text-danger">{{ compte["Absent"] }}</div>absences</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Historique -->
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <form class="row g-2 align-items-center m-0" method="get">
+                    <div class="col-auto fw-semibold"><i class="bi bi-clock-history me-1"></i>Historique</div>
+                    <div class="col-auto ms-auto"><input type="date" name="du" value="{{ du }}" class="form-control form-control-sm"></div>
+                    <div class="col-auto small text-muted">au</div>
+                    <div class="col-auto"><input type="date" name="au" value="{{ au }}" class="form-control form-control-sm"></div>
+                    <div class="col-auto"><button class="btn btn-sm btn-outline-secondary">Filtrer</button></div>
+                    <div class="col-auto"><a class="btn btn-sm btn-success" href="/admin/etudiants/{{ etudiant.id }}/export?du={{ du }}&au={{ au }}"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a></div>
+                </form>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr><th>Date</th><th>Cours</th><th class="text-center">Arrivée</th><th class="text-end">Statut</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for h in historique %}
+                        {% set b = h.bloc %}
+                        <tr>
+                            <td class="text-nowrap">
+                                <div class="fw-semibold">{{ b.debut.strftime('%d/%m/%Y') }}</div>
+                                <div class="small text-muted">{{ b.debut | heure }} – {{ b.fin | heure }}</div>
+                            </td>
+                            <td>
+                                <a href="/admin/seances/{{ b.id }}" class="text-decoration-none text-reset fw-semibold">{{ b.libelle }}</a>
+                                <div class="small text-muted">{{ b.nom_groupe }} · {{ b.nom_salle }}{% if b.nom_prof %} · {{ b.nom_prof }}{% endif %}</div>
+                            </td>
+                            <td class="text-center">{{ h.arrivee | heure }}</td>
+                            <td class="text-end">{{ statut(h.statut) }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="4" class="text-center text-muted py-5">Aucun cours sur cette période.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

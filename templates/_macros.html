@@ -1,0 +1,38 @@
+{# Petits éléments réutilisés dans plusieurs pages #}
+
+{% macro statut(valeur) -%}
+    {%- if valeur == "Présent" -%}<span class="statut statut-present"><i class="bi bi-check-circle me-1"></i>Présent</span>
+    {%- elif valeur == "En retard" -%}<span class="statut statut-retard"><i class="bi bi-clock-history me-1"></i>En retard</span>
+    {%- else -%}<span class="statut statut-absent"><i class="bi bi-x-circle me-1"></i>Absent</span>
+    {%- endif -%}
+{%- endmacro %}
+
+{% macro classe_taux(t) -%}
+    {%- if t is none -%}{%- elif t >= 80 -%}bon{%- elif t >= 50 -%}moyen{%- else -%}mauvais{%- endif -%}
+{%- endmacro %}
+
+{# Barre verte / jaune / rouge proportionnelle aux présents, retards, absents #}
+{% macro barre(present, retard, absent) -%}
+    {%- set total = present + retard + absent -%}
+    <div class="barre" title="{{ present }} présent(s), {{ retard }} retard(s), {{ absent }} absent(s)">
+        {%- if total -%}
+        <span style="width: {{ 100 * present / total }}%; background: var(--present)"></span>
+        <span style="width: {{ 100 * retard / total }}%; background: var(--retard)"></span>
+        <span style="width: {{ 100 * absent / total }}%; background: var(--absent)"></span>
+        {%- endif -%}
+    </div>
+{%- endmacro %}
+
+{# Liste déroulante des classes, regroupées par promo #}
+{% macro select_classe(groupes, choisi, nom="groupe", toutes="Toutes les classes", classes="form-select") -%}
+    <select name="{{ nom }}" class="{{ classes }}" onchange="this.form.submit()">
+        <option value="0">{{ toutes }}</option>
+        {% for promo, liste in groupes.items() %}
+        <optgroup label="{{ promo }}">
+            {% for g in liste %}
+            <option value="{{ g.id }}" {% if choisi == g.id %}selected{% endif %}>{{ g.nom_groupe }}</option>
+            {% endfor %}
+        </optgroup>
+        {% endfor %}
+    </select>
+{%- endmacro %}
