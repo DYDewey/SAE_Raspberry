@@ -430,7 +430,7 @@ def historique_etudiant(db: Session, etudiant, debut: datetime, fin: datetime):
     return lignes
 
 
-def _statuts_etudiants(db: Session, etudiants, debut: datetime, fin: datetime):
+def statuts_etudiants(db: Session, etudiants, debut: datetime, fin: datetime):
     """Pour chaque étudiant et chaque cours commencé de la période qui le concerne :
     (étudiant, bloc, statut, saisi à la main ?, heures de badge triées)."""
     ids_groupes = ids_groupes_lies(db, {g.nom_groupe for e in etudiants for g in e.groupes})
@@ -467,7 +467,7 @@ def _statuts_etudiants(db: Session, etudiants, debut: datetime, fin: datetime):
 def bilan_etudiants(db: Session, etudiants, debut: datetime, fin: datetime):
     """Nombre de présences / retards / absences de chaque étudiant sur une période."""
     comptes = {e.id: {PRESENT: 0, RETARD: 0, ABSENT: 0} for e in etudiants}
-    for e, _, statut, _, _ in _statuts_etudiants(db, etudiants, debut, fin):
+    for e, _, statut, _, _ in statuts_etudiants(db, etudiants, debut, fin):
         comptes[e.id][statut] += 1
     bilan = []
     for e in etudiants:
@@ -489,7 +489,7 @@ def absences_detaillees(db: Session, etudiants, debut: datetime, fin: datetime):
     de quoi reporter les absences dans ScoDoc sans feuille de présence."""
     lignes = [{"etudiant": e, "bloc": b, "statut": statut, "manuel": manuel,
                "arrivee": heures[0] if heures and statut == RETARD else None}
-              for e, b, statut, manuel, heures in _statuts_etudiants(db, etudiants, debut, fin)
+              for e, b, statut, manuel, heures in statuts_etudiants(db, etudiants, debut, fin)
               if statut != PRESENT]
     lignes.sort(key=lambda l: (l["bloc"].debut, l["bloc"].nom_groupe, l["etudiant"].nom, l["etudiant"].prenom))
     return lignes

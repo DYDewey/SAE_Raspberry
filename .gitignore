@@ -35,3 +35,6 @@ desktop.ini
 
 # Feuilles ScoDoc : vrais noms d'étudiants (RGPD), jamais sur GitHub
 feuille_signal_abs*.xlsx
+
+# Passations Claude (peuvent contenir des noms d'étudiants)
+.claude/passations/
