@@ -430,8 +430,9 @@ def historique_etudiant(db: Session, etudiant, debut: datetime, fin: datetime):
     return lignes
 
 
-def bilan_etudiants(db: Session, etudiants, debut: datetime, fin: datetime):
-    """Nombre de présences / retards / absences de chaque étudiant sur une période."""
+def _statuts_etudiants(db: Session, etudiants, debut: datetime, fin: datetime):
+    """Pour chaque étudiant et chaque cours commencé de la période qui le concerne :
+    (étudiant, bloc, statut, saisi à la main ?, heures de badge triées)."""
     ids_groupes = ids_groupes_lies(db, {g.nom_groupe for e in etudiants for g in e.groupes})
     blocs = _blocs_commences(db, ids_groupes, debut, fin)
     uids = [e.carte.nfc_uid for e in etudiants if e.carte]
@@ -448,7 +449,6 @@ def bilan_etudiants(db: Session, etudiants, debut: datetime, fin: datetime):
     blocs_de = {}
 
     maintenant = maintenant_paris()
-    bilan = []
     for e in etudiants:
         mes_groupes = [g.nom_groupe for g in e.groupes]
         cle = tuple(sorted(mes_groupes))
@@ -456,13 +456,22 @@ def bilan_etudiants(db: Session, etudiants, debut: datetime, fin: datetime):
             blocs_de[cle] = [b for nom, liste in blocs_par_groupe.items()
                              if etudiant_concerne(mes_groupes, nom) for b in liste]
         uid = e.carte.nfc_uid if e.carte else None
-        compte = {PRESENT: 0, RETARD: 0, ABSENT: 0}
         for b in blocs_de[cle]:
-            heures = [t for i in b.ids for t in bips.get((uid, i), [])]
+            heures = sorted(t for i in b.ids for t in bips.get((uid, i), []))
             manuel = statut_manuel(corrections, e.id, b)
             if not manuel and pas_encore_compte(b, heures, maintenant):
                 continue
-            compte[manuel or statut_depuis(min(heures) if heures else None, b.debut)] += 1
+            yield e, b, manuel or statut_depuis(heures[0] if heures else None, b.debut), manuel is not None, heures
+
+
+def bilan_etudiants(db: Session, etudiants, debut: datetime, fin: datetime):
+    """Nombre de présences / retards / absences de chaque étudiant sur une période."""
+    comptes = {e.id: {PRESENT: 0, RETARD: 0, ABSENT: 0} for e in etudiants}
+    for e, _, statut, _, _ in _statuts_etudiants(db, etudiants, debut, fin):
+        comptes[e.id][statut] += 1
+    bilan = []
+    for e in etudiants:
+        compte = comptes[e.id]
         total = sum(compte.values())
         bilan.append({
             "etudiant": e,
@@ -473,3 +482,14 @@ def bilan_etudiants(db: Session, etudiants, debut: datetime, fin: datetime):
             "taux": taux(compte[PRESENT], compte[RETARD], total),
         })
     return bilan
+
+
+def absences_detaillees(db: Session, etudiants, debut: datetime, fin: datetime):
+    """Une ligne par absence ou retard (cours, horaires, étudiant), triée par date puis nom :
+    de quoi reporter les absences dans ScoDoc sans feuille de présence."""
+    lignes = [{"etudiant": e, "bloc": b, "statut": statut, "manuel": manuel,
+               "arrivee": heures[0] if heures and statut == RETARD else None}
+              for e, b, statut, manuel, heures in _statuts_etudiants(db, etudiants, debut, fin)
+              if statut != PRESENT]
+    lignes.sort(key=lambda l: (l["bloc"].debut, l["bloc"].nom_groupe, l["etudiant"].nom, l["etudiant"].prenom))
+    return lignes

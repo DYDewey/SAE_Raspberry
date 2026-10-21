@@ -1,4 +1,6 @@
 """Étudiants : liste, import Excel, cartes NFC, fiche individuelle et suivi des absences."""
+import io
+import secrets
 from datetime import timedelta
 
 import pandas as pd
@@ -11,10 +13,10 @@ from sqlalchemy.orm import Session
 import config
 import models
 from database import get_db
-from services import scan
+from services import scan, scodoc
 from services.etudiants import associer_carte, importer_etudiants
-from services.export import XLSX, excel_avec_entete
-from services.presences import bilan_etudiants, etudiants_par_groupe, historique_etudiant, taux
+from services.export import XLSX, excel_absences, excel_avec_entete
+from services.presences import absences_detaillees, bilan_etudiants, etudiants_par_groupe, historique_etudiant, taux
 from services.temps import debut_annee_universitaire, lire_date, maintenant_paris
 from web import admin_requis, flash, groupes_par_promo, render
 
@@ -278,9 +280,69 @@ def suivi_absences(request: Request, groupe: int = None, du: str = None, au: str
     bilan, debut, fin = _bilan(db, groupe, du, au)
     total = {k: sum(b[k] for b in bilan) for k in ("cours", "present", "retard", "absent")}
     return render(request, "absences.html", actif="absences", bilan=bilan, total=total,
+                  feuille_scodoc=request.session.pop("feuille_scodoc", None),
                   taux_global=taux(total["present"], total["retard"], total["cours"]),
                   groupes=groupes_par_promo(_groupes(db)), groupe_choisi=groupe,
                   du=debut.strftime("%Y-%m-%d"), au=fin.strftime("%Y-%m-%d"))
+
+
+@router.get("/absences/detail")
+def export_absences_detail(groupe: int = None, du: str = None, au: str = None, db: Session = Depends(get_db)):
+    """Une ligne par absence ou retard (date, heures, cours, étudiant) : pour la saisie dans ScoDoc."""
+    debut, fin = _periode(du, au)
+    requete = db.query(models.EtudiantDB)
+    if groupe:
+        requete = _filtre_groupe(db, requete, groupe)
+    lignes = absences_detaillees(db, requete.all(), debut, fin)
+    classe = db.get(models.GroupeDB, groupe) if groupe else None
+    nom_groupe = classe.nom_groupe if classe else "tous"
+    nb_absents = sum(l["statut"] == "Absent" for l in lignes)
+    entete = [
+        "ABSENCES ET RETARDS - IUT",
+        f"Classe : {nom_groupe}",
+        f"Période : du {debut:%d/%m/%Y} au {fin:%d/%m/%Y}",
+        f"{nb_absents} absence(s), {len(lignes) - nb_absents} retard(s)",
+    ]
+    return StreamingResponse(excel_absences(lignes, entete), media_type=XLSX, headers={
+        "Content-Disposition": f"attachment; filename=absences_detail_{nom_groupe}_{debut:%Y%m%d}_{fin:%Y%m%d}.xlsx"})
+
+
+# Feuilles ScoDoc remplies, gardées en mémoire le temps de les télécharger
+_feuilles_scodoc = {}
+
+
+@router.post("/absences/scodoc")
+def remplir_feuille_scodoc(request: Request, fichier: UploadFile = File(...), db: Session = Depends(get_db)):
+    """Remplit la feuille de saisie hebdomadaire téléchargée depuis ScoDoc (ABS / RET par demi-journée)."""
+    try:
+        sortie, r = scodoc.remplir_feuille(db, fichier.file.read())
+    except ValueError as e:
+        flash(request, str(e), "danger")
+        return RedirectResponse(url="/admin/absences", status_code=303)
+    except Exception as e:
+        flash(request, f"Fichier illisible : {e}", "danger")
+        return RedirectResponse(url="/admin/absences", status_code=303)
+
+    while len(_feuilles_scodoc) >= 10:
+        _feuilles_scodoc.pop(next(iter(_feuilles_scodoc)))
+    jeton = secrets.token_urlsafe(16)
+    nom = (fichier.filename or "feuille_signal_abs.xlsx").rsplit(".", 1)[0] + "_rempli.xlsx"
+    _feuilles_scodoc[jeton] = (nom, sortie.getvalue())
+    request.session["feuille_scodoc"] = {
+        "jeton": jeton, "nom": nom, "abs": r["abs"], "ret": r["ret"], "deja_saisies": r["deja_saisies"],
+        "trouves": r["trouves"], "introuvables": r["introuvables"][:30], "nb_introuvables": len(r["introuvables"]),
+        "du": f"{r['du']:%d/%m/%Y}", "au": f"{r['au']:%d/%m/%Y}",
+    }
+    return RedirectResponse(url="/admin/absences", status_code=303)
+
+
+@router.get("/absences/scodoc/{jeton}")
+def telecharger_feuille_scodoc(jeton: str):
+    if jeton not in _feuilles_scodoc:
+        return RedirectResponse(url="/admin/absences", status_code=303)
+    nom, contenu = _feuilles_scodoc[jeton]
+    return StreamingResponse(io.BytesIO(contenu), media_type=XLSX,
+                             headers={"Content-Disposition": f"attachment; filename={nom}"})
 
 
 @router.get("/absences/export")

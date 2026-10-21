@@ -8,8 +8,37 @@
         <h1 class="h3 titre-page">Suivi des absences</h1>
         <div class="sous-titre">Du {{ du[8:10] }}/{{ du[5:7] }}/{{ du[:4] }} au {{ au[8:10] }}/{{ au[5:7] }}/{{ au[:4] }} · cours terminés, et cours en cours pour ceux qui ont déjà badgé</div>
     </div>
-    <a class="btn btn-success" href="/admin/absences/export?groupe={{ groupe_choisi or 0 }}&du={{ du }}&au={{ au }}"><i class="bi bi-file-earmark-excel me-1"></i>Exporter en Excel</a>
+    <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-success" href="/admin/absences/detail?groupe={{ groupe_choisi or 0 }}&du={{ du }}&au={{ au }}" title="Une ligne par absence ou retard, avec la date et les heures du cours"><i class="bi bi-file-earmark-excel me-1"></i>Liste des absences</a>
+        <a class="btn btn-outline-success" href="/admin/absences/export?groupe={{ groupe_choisi or 0 }}&du={{ du }}&au={{ au }}" title="Totaux par étudiant"><i class="bi bi-file-earmark-excel me-1"></i>Bilan par étudiant</a>
+    </div>
 </div>
+
+{% if feuille_scodoc %}
+<div class="alert alert-success d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <div>
+        <strong>Feuille ScoDoc remplie</strong> (semaine du {{ feuille_scodoc.du }} au {{ feuille_scodoc.au }}) :
+        {{ feuille_scodoc.abs }} demi-journée(s) ABS, {{ feuille_scodoc.ret }} RET,
+        {{ feuille_scodoc.trouves }} étudiant(s) reconnu(s).
+        {% if feuille_scodoc.deja_saisies %}{{ feuille_scodoc.deja_saisies }} case(s) déjà remplie(s) dans la feuille, laissée(s) telle(s) quelle(s).{% endif %}
+        {% if feuille_scodoc.nb_introuvables %}
+        <div class="small mt-1 text-danger">{{ feuille_scodoc.nb_introuvables }} étudiant(s) de la feuille absent(s) du site, non rempli(s) : {{ feuille_scodoc.introuvables | join(", ") }}{% if feuille_scodoc.nb_introuvables > feuille_scodoc.introuvables | length %}…{% endif %}</div>
+        {% endif %}
+    </div>
+    <a class="btn btn-success" href="/admin/absences/scodoc/{{ feuille_scodoc.jeton }}"><i class="bi bi-download me-1"></i>Télécharger pour ScoDoc</a>
+</div>
+{% endif %}
+
+<form class="card mb-3" method="post" action="/admin/absences/scodoc" enctype="multipart/form-data">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-auto"><i class="bi bi-upload me-1"></i><strong>Saisie ScoDoc</strong></div>
+            <div class="col-md small text-muted">Déposer la feuille de la semaine téléchargée depuis ScoDoc (feuille_signal_abs) : le site y met ABS et RET, il reste à la réimporter dans ScoDoc.</div>
+            <div class="col-md-3"><input type="file" name="fichier" accept=".xlsx" class="form-control form-control-sm" required></div>
+            <div class="col-auto"><button class="btn btn-sm btn-primary" type="submit">Remplir</button></div>
+        </div>
+    </div>
+</form>
 
 <form class="card mb-3" method="get">
     <div class="card-body py-2">

@@ -32,3 +32,6 @@ pointages*.db*
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Feuilles ScoDoc : vrais noms d'étudiants (RGPD), jamais sur GitHub
+feuille_signal_abs*.xlsx
