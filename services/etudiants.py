@@ -61,7 +61,8 @@ ALIAS_COLONNES = {
 def importer_etudiants(db: Session, contenu: bytes) -> dict:
     """Import du fichier Excel de la scolarité.
     Colonnes reconnues (majuscules et accents ignorés) : numero, nom, prenom
-    et, en option, groupe (plusieurs groupes séparés par , ; ou /)."""
+    et, en option, groupe (plusieurs groupes séparés par , ; ou /). Un étudiant déjà
+    présent (même numéro) prend les groupes du fichier."""
     df = pd.read_excel(io.BytesIO(contenu), dtype=object)
     df.columns = [ALIAS_COLONNES.get(_sans_accent(c), _sans_accent(c)) for c in df.columns]
     manquantes = {"numero", "nom", "prenom"} - set(df.columns)
@@ -94,9 +95,11 @@ def importer_etudiants(db: Session, contenu: bytes) -> dict:
             db.flush()   # pour repérer un numéro présent deux fois dans le fichier
             ajoutes += 1
         else:
-            nouveaux = [g for g in dict.fromkeys(ses_groupes) if g not in etudiant.groupes]
-            if nouveaux:
-                etudiant.groupes.extend(nouveaux)
+            # Le fichier de la scolarité fait foi : ses groupes remplacent les anciens
+            # (changement de TD/TP en cours d'année). Sans colonne groupe, on ne touche à rien.
+            ses_groupes = list(dict.fromkeys(ses_groupes))
+            if ses_groupes and set(ses_groupes) != set(etudiant.groupes):
+                etudiant.groupes = ses_groupes
                 mis_a_jour += 1
 
     db.commit()

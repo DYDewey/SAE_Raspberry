@@ -438,15 +438,26 @@ def bilan_etudiants(db: Session, etudiants, debut: datetime, fin: datetime):
     bips = _bips_par_seance(db, uids, [i for b in blocs for i in b.ids])
     corrections = corrections_manuelles(db, [i for b in blocs for i in b.ids])
 
+    # Blocs rangés par nom de groupe, et liste des blocs d'un étudiant calculée une seule
+    # fois par combinaison de groupes (les étudiants d'un même TP partagent la même) :
+    # etudiant_concerne() n'est plus appelé pour chaque étudiant x chaque bloc.
+    blocs_par_groupe = defaultdict(list)
+    for b in blocs:
+        if b.groupe:
+            blocs_par_groupe[b.groupe.nom_groupe].append(b)
+    blocs_de = {}
+
     maintenant = maintenant_paris()
     bilan = []
     for e in etudiants:
         mes_groupes = [g.nom_groupe for g in e.groupes]
+        cle = tuple(sorted(mes_groupes))
+        if cle not in blocs_de:
+            blocs_de[cle] = [b for nom, liste in blocs_par_groupe.items()
+                             if etudiant_concerne(mes_groupes, nom) for b in liste]
         uid = e.carte.nfc_uid if e.carte else None
         compte = {PRESENT: 0, RETARD: 0, ABSENT: 0}
-        for b in blocs:
-            if not b.groupe or not etudiant_concerne(mes_groupes, b.groupe.nom_groupe):
-                continue
+        for b in blocs_de[cle]:
             heures = [t for i in b.ids for t in bips.get((uid, i), [])]
             manuel = statut_manuel(corrections, e.id, b)
             if not manuel and pas_encore_compte(b, heures, maintenant):
