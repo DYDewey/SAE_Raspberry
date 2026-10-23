@@ -384,10 +384,10 @@ def _blocs_commences(db: Session, ids_groupes, debut: datetime, fin: datetime):
 
 
 def pas_encore_compte(bloc, heures, maintenant) -> bool:
-    """Cours pas encore terminé et étudiant pas encore badgé : il peut encore arriver,
-    on ne le compte pas absent (ni dans le nombre de cours) avant la fin du cours.
-    S'il a badgé, il est compté tout de suite (présent ou en retard)."""
-    return not heures and bloc.fin > maintenant
+    """Étudiant pas encore badgé alors que le cours vient de commencer : il est encore
+    dans la tolérance de retard, on ne le compte pas encore absent. Passé ce délai, il est
+    absent tout de suite (comme à l'appel), et passe en retard s'il badge plus tard."""
+    return not heures and maintenant < bloc.debut + timedelta(minutes=TOLERANCE_RETARD_MIN)
 
 
 def _bips_par_seance(db: Session, uids, ids_seances):
@@ -404,8 +404,8 @@ def _bips_par_seance(db: Session, uids, ids_seances):
 
 
 def historique_etudiant(db: Session, etudiant, debut: datetime, fin: datetime):
-    """Cours d'un étudiant sur une période, avec son statut (cours terminés,
-    plus le cours en cours s'il a déjà badgé)."""
+    """Cours d'un étudiant sur une période, avec son statut (cours terminés ou
+    en cours, une fois la tolérance de retard passée ou dès qu'il a badgé)."""
     noms = [g.nom_groupe for g in etudiant.groupes]
     blocs = [b for b in _blocs_commences(db, ids_groupes_lies(db, noms), debut, fin)
              if b.groupe and etudiant_concerne(noms, b.groupe.nom_groupe)]

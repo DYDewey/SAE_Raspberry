@@ -47,6 +47,7 @@ class EtudiantDB(Base):
     numero_etudiant = Column(String(32), unique=True, index=True, nullable=False)
     nom = Column(String(64), nullable=False)
     prenom = Column(String(64), nullable=False)
+    id_scodoc = Column(String(32), nullable=True)      # identifiant ScoDoc (« !8725 » dans ses feuilles)
 
     # lazy="selectin" : pour une liste d'étudiants, groupes et cartes sont chargés en une
     # requête chacun, au lieu de 2 requêtes par étudiant (pages beaucoup plus rapides)
@@ -98,6 +99,15 @@ class PresenceManuelleDB(Base):
     statut = Column(String(16), nullable=False)                # Présent / En retard / Absent
     modifie_le = Column(DateTime, nullable=True)
 
+class ScodocSemestreDB(Base):
+    """Semestre ScoDoc d'une promo, relevé dans une feuille d'absences ScoDoc
+    (ligne 3 : titre, cellule A6 : « !1053 »). Sert à générer la feuille chaque semaine."""
+    __tablename__ = "scodoc_semestres"
+    promo = Column(String(8), primary_key=True)                # BUT1, BUT2, BUT3
+    id_semestre = Column(String(32), nullable=False)
+    titre = Column(String(255), nullable=False)
+    modifie_le = Column(DateTime, nullable=True)
+
 class SeanceDB(Base):
     __tablename__ = "seances"
     id = Column(Integer, primary_key=True, index=True)
@@ -125,6 +135,9 @@ def migrer_schema(engine):
             # Boîtiers existants nommés "...ACCUEIL" / "...ACCEUIL" : cochés d'office
             conn.execute(text("UPDATE boitiers SET accueil = true "
                               "WHERE upper(device_id) LIKE '%ACCUEIL%' OR upper(device_id) LIKE '%ACCEUIL%'"))
+    if insp.has_table("etudiants") and "id_scodoc" not in {c["name"] for c in insp.get_columns("etudiants")}:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE etudiants ADD COLUMN id_scodoc VARCHAR(32)"))
     if insp.has_table("professeurs"):
         colonnes = {c["name"] for c in insp.get_columns("professeurs")}
         with engine.begin() as conn:

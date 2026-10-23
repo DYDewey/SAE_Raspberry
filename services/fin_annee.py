@@ -44,6 +44,7 @@ def anonymiser(db: Session, etudiants) -> int:
             db.flush()
             db.add(models.CarteDB(nfc_uid=nouveau, id_etudiant=e.id))
         e.nom, e.prenom, e.numero_etudiant = "Anonyme", f"n°{e.id}", f"ANON-{e.id}"
+        e.id_scodoc = None
         e.groupes = []
         _oublier_seances(db, e)
     db.commit()

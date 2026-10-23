@@ -14,31 +14,26 @@
     </div>
 </div>
 
-{% if feuille_scodoc %}
-<div class="alert alert-success d-flex flex-wrap justify-content-between align-items-center gap-2">
-    <div>
-        <strong>Feuille ScoDoc remplie</strong> (semaine du {{ feuille_scodoc.du }} au {{ feuille_scodoc.au }}) :
-        {{ feuille_scodoc.abs }} demi-journée(s) ABS, {{ feuille_scodoc.ret }} RET,
-        {{ feuille_scodoc.trouves }} étudiant(s) reconnu(s).
-        {% if feuille_scodoc.deja_saisies %}{{ feuille_scodoc.deja_saisies }} case(s) déjà remplie(s) dans la feuille, laissée(s) telle(s) quelle(s).{% endif %}
-        {% if feuille_scodoc.nb_introuvables %}
-        <div class="small mt-1 text-danger">{{ feuille_scodoc.nb_introuvables }} étudiant(s) de la feuille absent(s) du site, non rempli(s) : {{ feuille_scodoc.introuvables | join(", ") }}{% if feuille_scodoc.nb_introuvables > feuille_scodoc.introuvables | length %}…{% endif %}</div>
-        {% endif %}
-    </div>
-    <a class="btn btn-success" href="/admin/absences/scodoc/{{ feuille_scodoc.jeton }}"><i class="bi bi-download me-1"></i>Télécharger pour ScoDoc</a>
-</div>
-{% endif %}
-
-<form class="card mb-3" method="post" action="/admin/absences/scodoc" enctype="multipart/form-data">
+<div class="card mb-3">
     <div class="card-body py-2">
-        <div class="row g-2 align-items-center">
-            <div class="col-md-auto"><i class="bi bi-upload me-1"></i><strong>Saisie ScoDoc</strong></div>
-            <div class="col-md small text-muted">Déposer la feuille de la semaine téléchargée depuis ScoDoc (feuille_signal_abs) : le site y met ABS et RET, il reste à la réimporter dans ScoDoc.</div>
-            <div class="col-md-3"><input type="file" name="fichier" accept=".xlsx" class="form-control form-control-sm" required></div>
-            <div class="col-auto"><button class="btn btn-sm btn-primary" type="submit">Remplir</button></div>
-        </div>
+        <form class="row g-2 align-items-center" method="get" action="/admin/absences/scodoc">
+            <div class="col-md-auto"><i class="bi bi-file-earmark-arrow-up me-1"></i><strong>Feuille ScoDoc</strong></div>
+            <div class="col-md small text-muted">Absences (ABS) et retards (RET) de la semaine par demi-journée, au format d'import de ScoDoc.</div>
+            <div class="col-auto">
+                <select name="groupe" class="form-select form-select-sm" aria-label="Promo ou groupe">
+                    <option value="0">Toutes les promos</option>
+                    {% for promo, liste in groupes.items() %}
+                    <optgroup label="{{ promo }}">
+                        {% for g in liste %}<option value="{{ g.id }}">{{ g.nom_groupe }}</option>{% endfor %}
+                    </optgroup>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto"><input type="week" name="semaine" value="{{ semaine }}" class="form-control form-control-sm" aria-label="Semaine" required></div>
+            <div class="col-auto"><button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-download me-1"></i>Télécharger</button></div>
+        </form>
     </div>
-</form>
+</div>
 
 <form class="card mb-3" method="get">
     <div class="card-body py-2">
