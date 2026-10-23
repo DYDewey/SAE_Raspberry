@@ -85,6 +85,26 @@ Les tables manquantes sont créées au démarrage et les tables existantes mises
 
 Pour générer une `SECRET_KEY` : `python -c "import secrets; print(secrets.token_hex(32))"`
 
+### Sauvegarde et restauration de la base
+
+Les données vivent dans le volume Docker `postgres_data_v2`. Pour les sauvegarder (fonctionne sous Windows comme sous Linux) :
+
+```bash
+docker exec sae_postgres_neuf sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc -f /tmp/sauvegarde.dump'
+docker cp sae_postgres_neuf:/tmp/sauvegarde.dump ./sauvegarde_2026-10-23.dump
+```
+
+Pour restaurer (⚠ remplace les données actuelles) :
+
+```bash
+docker cp ./sauvegarde_2026-10-23.dump sae_postgres_neuf:/tmp/sauvegarde.dump
+docker exec sae_postgres_neuf sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists --no-owner /tmp/sauvegarde.dump'
+```
+
+Le fichier `.dump` contient des données personnelles : le garder hors du dépôt (il est dans `.gitignore`) et sur un support sûr.
+Côté boîtier, les bips non envoyés restent dans sa base SQLite locale tant que le serveur n'a pas confirmé leur réception.
+Les exports Excel (absences, fiche étudiant, émargement de séance) servent d'export lisible pour l'administration.
+
 ---
 
 ## Boîtiers Raspberry Pi

@@ -24,6 +24,7 @@ pointages*.db*
 *.db-wal
 *.db-shm
 *.sqlite3
+*.dump
 *.log
 
 # --- Éditeurs / OS ---
