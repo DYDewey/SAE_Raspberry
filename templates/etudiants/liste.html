@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import select_classe %}
+{% from "_macros.html" import select_classe, pastille %}
 {% block titre %}Étudiants{% endblock %}
 
 {% block contenu %}
@@ -48,6 +48,7 @@
                     <th>Étudiant</th>
                     <th>N° étudiant</th>
                     <th>Groupe</th>
+                    <th class="text-center" title="Depuis la rentrée, cours sans appel exclus">Présence</th>
                     <th style="width: 240px">Carte NFC</th>
                     <th class="text-end">Actions</th>
                 </tr>
@@ -55,13 +56,22 @@
             <tbody>
                 {% for e in etudiants %}
                 <tr>
-                    <td><a href="/admin/etudiants/{{ e.id }}" class="fw-semibold text-decoration-none">{{ e.nom | upper }} {{ e.prenom }}</a></td>
+                    <td>
+                        <a href="/admin/etudiants/{{ e.id }}" class="d-flex align-items-center gap-2 text-decoration-none">
+                            <span class="avatar-initiales">{{ e.prenom[:1] | upper }}{{ e.nom[:1] | upper }}</span>
+                            <span class="fw-semibold">{{ e.nom | upper }} {{ e.prenom }}</span>
+                        </a>
+                    </td>
                     <td class="text-muted">{{ e.numero_etudiant }}</td>
                     <td>
                         {# Groupe le plus précis au format ADE (BUT3-TD3-PB) ; survol : groupes du fichier importé #}
                         {% set affiche = e.groupes | groupe_affiche %}
                         {% if affiche %}<span class="badge text-bg-light border" title="Groupes importés : {{ e.groupes | map(attribute='nom_groupe') | sort | join(', ') }}">{{ affiche }}</span>
                         {% else %}<span class="text-muted small">—</span>{% endif %}
+                    </td>
+                    {% set b = bilans.get(e.id) %}
+                    <td class="text-center" title="{% if b and b.cours %}{{ b.present + b.retard }} présence(s) sur {{ b.cours }} cours · {{ b.absent }} absence(s){% else %}Aucun cours avec appel{% endif %}">
+                        {{ pastille(b.taux if b else none, "presence") }}
                     </td>
                     <td>
                         {% if e.carte %}
@@ -96,7 +106,7 @@
                     </td>
                 </tr>
                 {% else %}
-                <tr><td colspan="5" class="text-center text-muted py-5">
+                <tr><td colspan="6" class="text-center text-muted py-5">
                     <i class="bi bi-people fs-2 d-block mb-2"></i>Aucun étudiant ne correspond.
                     {% if not total %}<div class="small">Commencez par importer le fichier Excel de la scolarité.</div>{% endif %}
                 </td></tr>

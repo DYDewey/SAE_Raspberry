@@ -126,6 +126,8 @@
                         {% if c.hauteur > 130 and b.nom_prof %}<div class="meta"><i class="bi bi-person"></i> {{ b.nom_prof }}</div>{% endif %}
                         {% if r.etat == "a_venir" %}
                             <span class="presence text-secondary"><i class="bi bi-people"></i> {{ r.effectif }}</span>
+                        {% elif not r.appel %}
+                            <span class="presence text-secondary" title="Personne n'a badgé : ce cours ne compte pas dans les absences"><i class="bi bi-slash-circle"></i> Pas d'appel</span>
                         {% else %}
                             <span class="presence {{ classe_taux(c.taux) }}">
                                 <i class="bi bi-person-check"></i> {{ r.present + r.retard }}/{{ r.effectif }}

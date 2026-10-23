@@ -13,7 +13,7 @@ from database import get_db
 from services import ical
 from services.export import XLSX, excel_avec_entete
 from services.groupes import sont_lies
-from services.presences import (ABSENT, PRESENT, RETARD, bloc_de_seance, construire_blocs, presences_bloc,
+from services.presences import (ABSENT, PRESENT, RETARD, bloc_de_seance, blocs_avec_appel, construire_blocs, presences_bloc,
                                 resumes_blocs, taux)
 from services.temps import debut_semaine, jour_fr, lire_date, maintenant_paris
 from web import PasAutorise, admin_requis, connexion_requise, flash, groupes_par_promo, prof_connecte, render, templates
@@ -52,6 +52,7 @@ class CoursAffiche:
         rs = [resumes[b.id] for b in self.blocs]
         self.resume = {k: sum(r[k] for r in rs) for k in ("effectif", "present", "retard", "absent")}
         self.resume["etat"] = rs[0]["etat"]
+        self.resume["appel"] = any(r["appel"] for r in rs)
 
 
 def regrouper(blocs, resumes):
@@ -208,6 +209,7 @@ def _contexte_emargement(db: Session, seance_id: int, id_prof=None):
     bloc = bloc_de_seance(db, seance)
     liste, hors_liste, compteur = presences_bloc(db, bloc)
     return {
+        "appel": bool(blocs_avec_appel(db, [bloc])),
         "bloc": bloc,
         "etat": bloc.etat(),
         "liste": liste,

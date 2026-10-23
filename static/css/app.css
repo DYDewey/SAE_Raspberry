@@ -14,12 +14,57 @@
 body { background: var(--fond); color: #24303f; }
 
 .bg-iut { background: linear-gradient(90deg, var(--iut), var(--iut-clair)); }
-.navbar .nav-link { border-radius: .4rem; padding: .45rem .75rem !important; }
-.navbar .nav-link.active { background: rgba(255,255,255,.15); }
+
+body { font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif; }
+
+/* Boutons principaux aux couleurs du site (au lieu du bleu vif de Bootstrap) */
+.btn-primary {
+    --bs-btn-bg: var(--iut-clair); --bs-btn-border-color: var(--iut-clair);
+    --bs-btn-hover-bg: var(--iut); --bs-btn-hover-border-color: var(--iut);
+    --bs-btn-active-bg: var(--iut); --bs-btn-active-border-color: var(--iut);
+}
+
+/* Barre de menu : grande, bleu nuit, onglets en pastilles (l'actif en blanc) */
+.barre-menu {
+    background: linear-gradient(100deg, #0f2240 0%, #1a3a6b 60%, #24508f 100%);
+    box-shadow: 0 4px 20px rgba(15, 34, 64, .25);
+    padding: .9rem 0;
+}
+.barre-menu .navbar-brand { color: #fff; }
+.marque-titre { font-size: 1.25rem; letter-spacing: -.01em; }
+.marque-sous-titre { font-size: .75rem; color: rgba(255,255,255,.6); margin-top: .2rem; font-weight: 500; }
+.barre-menu .nav-link {
+    display: flex; align-items: center; gap: .55rem;
+    color: rgba(255,255,255,.75) !important; font-weight: 500; font-size: 1rem;
+    padding: .7rem 1.15rem !important; border-radius: .8rem;
+    transition: background .15s, color .15s;
+}
+.barre-menu .nav-link i { font-size: 1.2rem; }
+.barre-menu .nav-link:hover { color: #fff !important; background: rgba(255,255,255,.1); }
+.barre-menu .nav-link.active {
+    color: #13294b !important; background: #fff; font-weight: 700;
+    box-shadow: 0 4px 14px rgba(0,0,0,.18);
+}
+.barre-menu .nav-link.active i { color: var(--iut-clair); }
+@media (max-width: 991.98px) {
+    .barre-menu .navbar-nav { padding: .75rem 0; }
+    .barre-menu .dropdown { padding-bottom: .5rem; }
+}
+.btn-utilisateur {
+    color: #fff; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.18);
+    border-radius: 2rem; padding: .35rem 1rem .35rem .35rem;
+}
+.btn-utilisateur:hover, .btn-utilisateur.show { color: #fff; background: rgba(255,255,255,.2); }
+.avatar {
+    width: 34px; height: 34px; border-radius: 50%; background: #fff; color: #1a3a6b;
+    display: inline-flex; align-items: center; justify-content: center; font-size: .9rem; font-weight: 800;
+}
 .logo-badge {
     display: inline-flex; align-items: center; justify-content: center;
-    width: 32px; height: 32px; border-radius: 8px; background: rgba(255,255,255,.18);
+    width: 44px; height: 44px; border-radius: 12px; font-size: 1.35rem;
+    background: #fff; color: #1a3a6b; box-shadow: 0 4px 12px rgba(0,0,0,.2);
 }
+.page-login .logo-badge { box-shadow: none; background: linear-gradient(90deg, var(--iut), var(--iut-clair)); }
 
 /* Cartes et titres */
 .card { border: 1px solid var(--bord); border-radius: .75rem; }
@@ -36,6 +81,14 @@ body { background: var(--fond); color: #24303f; }
 }
 .stat-valeur { font-size: 1.6rem; font-weight: 700; line-height: 1.1; }
 .stat-libelle { color: #6b7685; font-size: .85rem; }
+.stat-titre { font-size: 1.05rem; font-weight: 600; color: #24303f; }
+.stat .stat-icone { width: 64px; height: 64px; border-radius: 16px; font-size: 1.7rem; }
+
+/* Cours du jour : bloc horaire, coloré quand le cours est en cours */
+.heure-cours { min-width: 64px; padding: .35rem .5rem; border-radius: 10px; text-align: center; background: #f1f4f8; color: #24303f; }
+.heure-cours .small { color: #6b7685; }
+.heure-cours.en-cours { background: var(--iut, #1f3a5f); color: #fff; }
+.heure-cours.en-cours .small { color: rgba(255,255,255,.75); }
 
 /* Tableaux */
 .table > :not(caption) > * > * { padding: .6rem .75rem; }
@@ -48,12 +101,51 @@ body { background: var(--fond); color: #24303f; }
 .statut-retard  { background: #fff0c2; color: #7a5b00; }
 .statut-absent  { background: #f8d7da; color: #842029; }
 .statut-avenir  { background: #e9ecef; color: #495057; }
+.statut-sans-appel { background: #eef1f5; color: #6b7685; border: 1px dashed #c3cad4; }
 
 .uid { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; }
 
 /* Barre de progression présence */
 .barre { height: 6px; border-radius: 3px; background: #e9ecef; overflow: hidden; display: flex; }
 .barre > span { display: block; height: 100%; }
+
+/* Page Absences : cercles de pourcentage, tuiles, cartes de classe, pastilles */
+.anneau {
+    --taille: 64px;
+    width: var(--taille); height: var(--taille); border-radius: 50%; flex-shrink: 0;
+    background: conic-gradient(var(--c) calc(var(--p) * 1%), #e9ecef 0);
+    display: flex; align-items: center; justify-content: center; position: relative;
+}
+.anneau::before { content: ""; position: absolute; inset: 7px; border-radius: 50%; background: #fff; }
+.anneau span { position: relative; font-weight: 700; font-size: .95rem; }
+.anneau.petit { --taille: 48px; }
+.anneau.petit::before { inset: 5px; }
+.anneau.petit span { font-size: .78rem; }
+.anneau.grand { --taille: 96px; }
+.anneau.grand::before { inset: 10px; }
+.anneau.grand span { font-size: 1.35rem; }
+.tuile { display: flex; align-items: center; gap: 1rem; }
+.tuile .stat-libelle { font-size: .95rem; font-weight: 600; color: #24303f; }
+.tuile-detail { color: #6b7685; font-size: .82rem; }
+.carte-classe { transition: transform .1s, box-shadow .1s; }
+.carte-classe:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(31,58,95,.12); }
+.carte-classe .barre { height: 8px; border-radius: 4px; }
+.pastille-pct { display: inline-block; min-width: 54px; padding: .25em .6em; border-radius: 2rem; font-weight: 700; font-size: .82rem; }
+.pastille-pct.bon     { background: #d1f0df; color: #0f5132; }
+.pastille-pct.moyen   { background: #fff0c2; color: #7a5b00; }
+.pastille-pct.mauvais { background: #f8d7da; color: #842029; }
+.pastille-pct.neutre  { background: #e9ecef; color: #6b7685; }
+.avatar-initiales {
+    width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+    background: #e3eaf3; color: var(--iut); font-weight: 700; font-size: .8rem;
+}
+.avatar-initiales.grand { width: 56px; height: 56px; font-size: 1.2rem; }
+
+/* Historique de la fiche étudiant : liseré de couleur selon le statut */
+.ligne-statut > td:first-child { border-left: 4px solid transparent; }
+.ligne-statut.present > td:first-child { border-left-color: var(--present); }
+.ligne-statut.retard  > td:first-child { border-left-color: var(--retard); }
+.ligne-statut.absent  > td:first-child { border-left-color: var(--absent); }
 
 /* Page de connexion */
 .page-login { min-height: 100vh; display: flex; align-items: center; justify-content: center;

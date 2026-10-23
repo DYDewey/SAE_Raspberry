@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import barre, classe_taux %}
+{% from "_macros.html" import barre, classe_taux, anneau, pastille %}
 {% block titre %}Tableau de bord{% endblock %}
 
 {% block contenu %}
@@ -20,13 +20,15 @@
         </div></div>
     </div>
     <div class="col-sm-6 col-xl-3">
-        <div class="card h-100"><div class="card-body stat">
-            <div class="stat-icone bg-success-subtle text-success"><i class="bi bi-graph-up"></i></div>
+        <a href="/admin/absences" class="text-reset text-decoration-none">
+        <div class="card h-100 carte-classe"><div class="card-body stat">
+            {{ anneau(taux_semaine) }}
             <div>
-                <div class="stat-valeur">{% if taux_semaine is not none %}{{ taux_semaine }} %{% else %}—{% endif %}</div>
-                <div class="stat-libelle">présence sur 7 jours</div>
+                <div class="stat-titre">Présence</div>
+                <div class="stat-libelle">sur les 7 derniers jours</div>
             </div>
         </div></div>
+        </a>
     </div>
     <div class="col-sm-6 col-xl-3">
         <a href="/admin/etudiants{% if nb_sans_carte %}?sans_carte=true{% endif %}" class="text-reset text-decoration-none">
@@ -72,9 +74,9 @@
                 {% set t = ((r.present + r.retard) * 100 / r.effectif) | round | int if r.effectif else none %}
                 <a href="/admin/seances/{{ b.id }}" class="list-group-item list-group-item-action py-3" data-promo="{{ b.nom_groupe | promo }}">
                     <div class="d-flex gap-3 align-items-center">
-                        <div class="text-center" style="min-width: 64px">
+                        <div class="heure-cours{% if r.etat == 'en_cours' %} en-cours{% endif %}">
                             <div class="fw-bold">{{ b.debut | heure }}</div>
-                            <div class="small text-muted">{{ b.fin | heure }}</div>
+                            <div class="small">{{ b.fin | heure }}</div>
                         </div>
                         <div class="flex-grow-1 min-w-0">
                             <div class="fw-semibold text-truncate">
@@ -85,11 +87,15 @@
                                 {% if b.nom_prof %} · <i class="bi bi-person"></i> {{ b.nom_prof }}{% endif %}
                             </div>
                         </div>
-                        <div class="text-end" style="min-width: 110px">
+                        <div class="text-end" style="min-width: 130px">
                             {% if r.etat == "a_venir" %}
                                 <span class="statut statut-avenir">À venir</span>
+                            {% elif not r.appel %}
+                                <span class="statut statut-sans-appel" title="Personne n'a badgé : le prof n'a pas de boîtier ou ne l'a pas allumé. Ce cours ne compte pas dans les absences."><i class="bi bi-slash-circle me-1"></i>Pas d'appel</span>
                             {% else %}
-                                <div class="fw-semibold presence {{ classe_taux(t) }}">{{ r.present + r.retard }}/{{ r.effectif }} présents</div>
+                                <div class="d-flex justify-content-end align-items-center gap-2 mb-1">
+                                    <span class="small text-muted">{{ r.present + r.retard }}/{{ r.effectif }}</span>{{ pastille(t, "presence") }}
+                                </div>
                                 {{ barre(r.present, r.retard, r.absent) }}
                             {% endif %}
                         </div>

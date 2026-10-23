@@ -20,7 +20,9 @@
         </div>
     </div>
 
-    {% if etat != "a_venir" %}
+    {% if etat != "a_venir" and not appel %}
+    <div class="alert alert-secondary small"><i class="bi bi-slash-circle me-1"></i><strong>Pas d'appel</strong> : personne n'a badgé (le prof n'a pas de boîtier ou ne l'a pas allumé). Ce cours ne compte ni en présence ni en absence. Vous pouvez quand même saisir les statuts à la main ci-dessous.</div>
+    {% elif etat != "a_venir" %}
     <div class="row g-2 text-center mb-2">
         <div class="col-4"><div class="border rounded-3 py-2"><div class="fs-4 fw-bold text-success">{{ compteur["Présent"] }}</div><div class="small text-muted">Présents</div></div></div>
         <div class="col-4"><div class="border rounded-3 py-2"><div class="fs-4 fw-bold" style="color:#9a7500">{{ compteur["En retard"] }}</div><div class="small text-muted">En retard</div></div></div>

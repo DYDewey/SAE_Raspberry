@@ -36,3 +36,16 @@
         {% endfor %}
     </select>
 {%- endmacro %}
+
+{# Cercle de pourcentage : couleur selon le taux (vert / jaune / rouge) ou imposée #}
+{% macro anneau(pct, couleur=None, taille="") -%}
+    {%- set c = couleur or {"bon": "var(--present)", "moyen": "var(--retard)", "mauvais": "var(--absent)"}.get(classe_taux(pct), "#adb5bd") -%}
+    <div class="anneau {{ taille }}" style="--p: {{ pct or 0 }}; --c: {{ c }}"><span>{% if pct is not none %}{{ pct }}%{% else %}—{% endif %}</span></div>
+{%- endmacro %}
+
+{% macro pastille(pct, sorte) -%}
+    {%- if pct is none -%}<span class="text-muted">—</span>
+    {%- elif sorte == "presence" -%}<span class="pastille-pct {{ classe_taux(pct) }}">{{ pct }} %</span>
+    {%- else -%}<span class="pastille-pct {{ 'mauvais' if pct > 20 else ('moyen' if pct > 0 else 'neutre') }}">{{ pct }} %</span>
+    {%- endif -%}
+{%- endmacro %}

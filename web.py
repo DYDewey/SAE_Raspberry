@@ -1,4 +1,5 @@
 """Outils communs aux pages web : templates, messages de confirmation, connexion."""
+import os
 import time
 
 from fastapi import Request
@@ -9,6 +10,9 @@ from services.groupes import groupe_affiche
 from services.temps import jour_fr
 
 templates = Jinja2Templates(directory="templates")
+# {{ version('css/app.css') }} : date de modif du fichier, ajoutée à l'URL pour que le
+# navigateur recharge le CSS dès qu'il change (sinon il garde l'ancien en cache)
+templates.env.globals["version"] = lambda chemin: int(os.path.getmtime(os.path.join("static", chemin)))
 
 
 # --- Filtres utilisables dans les templates : {{ date | heure }} ---

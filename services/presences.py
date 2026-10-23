@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 import models
 from config import AVANCE_POINTAGE_MIN, MOTIF_SAE, TOLERANCE_RETARD_MIN
-from services.groupes import etudiant_concerne, sont_lies
+from services.groupes import etudiant_concerne, groupe_affiche, groupes_effectifs, sont_lies, td_du_tp
 from services.temps import maintenant_paris
 
 PRESENT, RETARD, ABSENT = "Présent", "En retard", "Absent"
@@ -264,6 +264,20 @@ def corrections_manuelles(db: Session, ids_seances) -> dict:
         models.PresenceManuelleDB.id_seance.in_(ids_seances)).all()}
 
 
+def blocs_avec_appel(db: Session, blocs) -> set:
+    """Ids des blocs où l'appel a été fait : au moins un bip ou une correction à la main.
+    Un prof sans boîtier (ou qui ne l'a pas allumé) ne fait pas l'appel : personne ne
+    badge, et le cours ne doit compter ni présent ni absent."""
+    ids = [i for b in blocs for i in b.ids]
+    if not ids:
+        return set()
+    faits = {i for (i,) in db.query(models.PointageDB.id_seance).filter(
+        models.PointageDB.id_seance.in_(ids)).distinct()}
+    faits |= {i for (i,) in db.query(models.PresenceManuelleDB.id_seance).filter(
+        models.PresenceManuelleDB.id_seance.in_(ids)).distinct()}
+    return {b.id for b in blocs if faits.intersection(b.ids)}
+
+
 def statut_manuel(corrections: dict, id_etudiant: int, bloc: Bloc):
     """Statut saisi à la main pour cet étudiant sur ce bloc, ou None."""
     for i in bloc.ids:
@@ -315,7 +329,8 @@ def presences_bloc(db: Session, bloc: Bloc):
 def resumes_blocs(db: Session, blocs) -> dict:
     """Compteurs de présence de plusieurs blocs en peu de requêtes
     (utilisé par la grille EDT et le tableau de bord).
-    Retourne {bloc.id: {"effectif", "present", "retard", "absent", "etat"}}."""
+    Retourne {bloc.id: {"effectif", "present", "retard", "absent", "etat", "appel"}}.
+    Sans appel (personne n'a badgé), les compteurs restent à 0."""
     if not blocs:
         return {}
     maintenant = maintenant_paris()
@@ -326,6 +341,7 @@ def resumes_blocs(db: Session, blocs) -> dict:
     # Premier bip de chaque carte dans chaque séance
     tous_ids = [i for b in blocs for i in b.ids]
     corrections = corrections_manuelles(db, tous_ids)
+    appel = blocs_avec_appel(db, blocs)
     premiers = defaultdict(dict)
     for id_seance, uid, premier in db.query(
         models.PointageDB.id_seance, models.PointageDB.nfc_uid, func.min(models.PointageDB.timestamp)
@@ -344,7 +360,7 @@ def resumes_blocs(db: Session, blocs) -> dict:
                     premier_par_uid[uid] = t
         present = retard = 0
         etudiants = etudiants_groupe.get(id_groupe, [])
-        for e in etudiants:
+        for e in (etudiants if b.id in appel else []):
             uid = e.carte.nfc_uid if e.carte else None
             statut = statut_manuel(corrections, e.id, b) or statut_depuis(premier_par_uid.get(uid), b.debut)
             present += statut == PRESENT
@@ -354,8 +370,9 @@ def resumes_blocs(db: Session, blocs) -> dict:
             "effectif": effectif,
             "present": present,
             "retard": retard,
-            "absent": effectif - present - retard,
+            "absent": effectif - present - retard if b.id in appel else 0,
             "etat": b.etat(maintenant),
+            "appel": b.id in appel,
         }
     return resultat
 
@@ -380,7 +397,9 @@ def _blocs_commences(db: Session, ids_groupes, debut: datetime, fin: datetime):
         models.SeanceDB.date_debut >= debut,
         models.SeanceDB.date_debut <= min(fin, limite),
     ).all()
-    return construire_blocs(db, seances)
+    blocs = construire_blocs(db, seances)
+    appel = blocs_avec_appel(db, blocs)
+    return [b for b in blocs if b.id in appel]  # les cours sans appel ne comptent pas
 
 
 def pas_encore_compte(bloc, heures, maintenant) -> bool:
@@ -480,8 +499,48 @@ def bilan_etudiants(db: Session, etudiants, debut: datetime, fin: datetime):
             "retard": compte[RETARD],
             "absent": compte[ABSENT],
             "taux": taux(compte[PRESENT], compte[RETARD], total),
+            "taux_absence": pourcentage(compte[ABSENT], total),
         })
     return bilan
+
+
+def pourcentage(nombre, total):
+    return round(100 * nombre / total) if total else None
+
+
+def td_de(noms_groupes) -> str:
+    """Classe (TD) d'un étudiant pour le bilan par classe : 'BUT2-TD3', sinon sa promo."""
+    effectifs = groupes_effectifs(noms_groupes)
+    td = next((n for n in effectifs if re.fullmatch(r"BUT\d-TD\d+", n)), None)
+    tp = next((n for n in effectifs if re.fullmatch(r"BUT\d-TP[A-Z]", n)), None)
+    promo = next((n for n in effectifs if re.fullmatch(r"BUT\d", n)), None)
+    return td or (td_du_tp(tp) if tp else promo) or "Sans groupe"
+
+
+def bilan_par_classe(bilan, seuil_risque=80):
+    """Totaux par TD ; si tous les étudiants sont dans le même TD, par groupe le plus précis
+    (TP ou demi-groupe). Retourne une liste triée par nom de classe."""
+    def regrouper(cle_de):
+        classes = defaultdict(lambda: {"etudiants": 0, "cours": 0, "present": 0, "retard": 0,
+                                       "absent": 0, "a_risque": 0})
+        for b in bilan:
+            c = classes[cle_de([g.nom_groupe for g in b["etudiant"].groupes])]
+            c["etudiants"] += 1
+            c["a_risque"] += b["taux"] is not None and b["taux"] < seuil_risque
+            for k in ("cours", "present", "retard", "absent"):
+                c[k] += b[k]
+        return classes
+
+    classes = regrouper(td_de)
+    if len(classes) <= 1:
+        classes = regrouper(lambda noms: groupe_affiche(noms) or "Sans groupe")
+    resultat = []
+    for nom, c in sorted(classes.items()):
+        c["nom"] = nom
+        c["taux"] = taux(c["present"], c["retard"], c["cours"])
+        c["taux_absence"] = pourcentage(c["absent"], c["cours"])
+        resultat.append(c)
+    return resultat
 
 
 def absences_detaillees(db: Session, etudiants, debut: datetime, fin: datetime):

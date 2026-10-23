@@ -17,7 +17,9 @@ from services import scan, scodoc
 from services.etudiants import associer_carte, importer_etudiants
 from services.fin_annee import PROMOS
 from services.export import XLSX, excel_absences, excel_avec_entete
-from services.presences import absences_detaillees, bilan_etudiants, etudiants_par_groupe, historique_etudiant, taux
+from services.groupes import cle as cle_groupe
+from services.presences import (absences_detaillees, bilan_etudiants, bilan_par_classe, etudiants_par_groupe,
+                                historique_etudiant, pourcentage, taux)
 from services.temps import debut_annee_universitaire, lire_date, maintenant_paris
 from web import admin_requis, flash, groupes_par_promo, render
 
@@ -59,9 +61,12 @@ def liste_etudiants(request: Request, groupe: int = None, q: str = "", sans_cart
     if sans_carte:
         requete = requete.filter(~models.EtudiantDB.carte.has())
     etudiants = requete.order_by(models.EtudiantDB.nom, models.EtudiantDB.prenom).all()
+    # Taux de présence de chacun depuis la rentrée (cours avec appel uniquement)
+    debut, fin = _periode(None, None)
+    bilans = {b["etudiant"].id: b for b in bilan_etudiants(db, etudiants, debut, fin)}
 
     return render(request, "etudiants/liste.html", actif="etudiants",
-                  etudiants=etudiants, groupes=groupes_par_promo(_groupes(db)),
+                  etudiants=etudiants, bilans=bilans, groupes=groupes_par_promo(_groupes(db)),
                   groupe_choisi=groupe, q=q, sans_carte=sans_carte,
                   total=db.query(models.EtudiantDB).count(),
                   total_sans_carte=db.query(models.EtudiantDB).filter(~models.EtudiantDB.carte.has()).count(),
@@ -228,6 +233,7 @@ def fiche_etudiant(etudiant_id: int, request: Request, du: str = None, au: str =
     return render(request, "etudiants/fiche.html", actif="etudiants", etudiant=etudiant,
                   historique=historique, compte=compte,
                   taux=taux(compte["Présent"], compte["En retard"], len(historique)),
+                  taux_absence=pourcentage(compte["Absent"], len(historique)),
                   du=debut.strftime("%Y-%m-%d"), au=fin.strftime("%Y-%m-%d"))
 
 
@@ -280,10 +286,18 @@ def suivi_absences(request: Request, groupe: int = None, du: str = None, au: str
         groupe = request.session.get("edt_groupe")
     bilan, debut, fin = _bilan(db, groupe, du, au)
     total = {k: sum(b[k] for b in bilan) for k in ("cours", "present", "retard", "absent")}
+    total["taux_absence"] = pourcentage(total["absent"], total["cours"])
+    total["taux_retard"] = pourcentage(total["retard"], total["cours"])
+    total["a_risque"] = sum(1 for b in bilan if b["taux"] is not None and b["taux"] < 80)
+    tous_groupes = _groupes(db)
+    # Clic sur une carte de classe -> filtre ; 'BUT3-TD2' retrouve aussi le groupe 'BUT3-TD2-APP'
+    ids_groupes = {cle_groupe(g.nom_groupe): g.id for g in reversed(tous_groupes)}
+    ids_groupes.update({g.nom_groupe: g.id for g in tous_groupes})
     return render(request, "absences.html", actif="absences", bilan=bilan, total=total,
+                  classes=bilan_par_classe(bilan), ids_groupes=ids_groupes,
                   scodoc=scodoc.etat_liaison(db), semaine=f"{scodoc.lundi_de():%G-W%V}",
                   taux_global=taux(total["present"], total["retard"], total["cours"]),
-                  groupes=groupes_par_promo(_groupes(db)), groupe_choisi=groupe,
+                  groupes=groupes_par_promo(tous_groupes), groupe_choisi=groupe,
                   du=debut.strftime("%Y-%m-%d"), au=fin.strftime("%Y-%m-%d"))
 
 

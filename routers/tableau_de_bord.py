@@ -31,7 +31,8 @@ def tableau_de_bord(request: Request, db: Session = Depends(get_db)):
         models.SeanceDB.date_debut >= aujourdhui - timedelta(days=6),
         models.SeanceDB.date_debut <= maintenant,
     ).all()) if b.fin <= maintenant]
-    resumes_semaine = resumes_blocs(db, blocs_semaine).values()
+    # (les cours sans appel ne comptent pas)
+    resumes_semaine = [r for r in resumes_blocs(db, blocs_semaine).values() if r["appel"]]
     taux_semaine = taux(sum(r["present"] for r in resumes_semaine), sum(r["retard"] for r in resumes_semaine),
                         sum(r["effectif"] for r in resumes_semaine))
 
