@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block titre %}{{ "Modifier" if etudiant else "Ajouter" }} un étudiant{% endblock %}
+
+{% block contenu %}
+{% set ids_groupes = etudiant.groupes | map(attribute="id") | list if etudiant else [] %}
+<nav class="mb-3">
+    <ol class="breadcrumb small mb-0">
+        <li class="breadcrumb-item"><a href="/admin/etudiants">Étudiants</a></li>
+        {% if etudiant %}<li class="breadcrumb-item"><a href="/admin/etudiants/{{ etudiant.id }}">{{ etudiant.nom | upper }} {{ etudiant.prenom }}</a></li>{% endif %}
+        <li class="breadcrumb-item active">{{ "Modifier" if etudiant else "Ajouter" }}</li>
+    </ol>
+</nav>
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <form class="card" method="post" action="{{ '/admin/etudiants/' ~ etudiant.id ~ '/modifier' if etudiant else '/admin/etudiants/nouveau' }}">
+            <div class="card-header"><i class="bi bi-person me-1"></i>{{ "Modifier la fiche" if etudiant else "Nouvel étudiant" }}</div>
+            <div class="card-body p-4">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">N° étudiant</label>
+                        <input type="text" name="numero_etudiant" class="form-control" value="{{ etudiant.numero_etudiant if etudiant else '' }}" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Nom</label>
+                        <input type="text" name="nom" class="form-control" value="{{ etudiant.nom if etudiant else '' }}" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Prénom</label>
+                        <input type="text" name="prenom" class="form-control" value="{{ etudiant.prenom if etudiant else '' }}" required>
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label">Carte NFC</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-credit-card-2-front"></i></span>
+                            <input type="text" name="nfc_uid" id="champ-uid" class="form-control uid" autocomplete="off"
+                                   value="{{ etudiant.carte.nfc_uid if etudiant and etudiant.carte else '' }}"
+                                   placeholder="Cliquez sur « Scanner » puis passez la carte sur un boîtier">
+                            <button type="button" class="btn btn-outline-primary" data-scan="0" data-cible="champ-uid"
+                                    data-nom="{{ (etudiant.prenom ~ ' ' ~ etudiant.nom) if etudiant else 'le nouvel étudiant' }}">
+                                <i class="bi bi-broadcast me-1"></i>Scanner
+                            </button>
+                        </div>
+                        <div class="form-text">La carte est enregistrée avec la fiche. Laisser vide pour retirer la carte. Si la carte appartient à un autre étudiant, elle lui sera retirée.</div>
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label">Groupes</label>
+                        {% for promo, liste in groupes.items() %}
+                        <div class="mb-2">
+                            <div class="small text-muted fw-semibold mb-1">{{ promo }}</div>
+                            <div class="d-flex flex-wrap gap-2">
+                                {% for g in liste %}
+                                <input type="checkbox" class="btn-check" name="groupes_ids" value="{{ g.id }}" id="g{{ g.id }}" {% if g.id in ids_groupes %}checked{% endif %}>
+                                <label class="btn btn-sm btn-outline-primary" for="g{{ g.id }}">{{ g.nom_groupe }}</label>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="text-muted small">Aucun groupe : synchronisez l'emploi du temps ou créez-en dans <a href="/admin/configuration#groupes">Configuration</a>.</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-white d-flex justify-content-end gap-2 py-3">
+                <a href="{{ '/admin/etudiants/' ~ etudiant.id if etudiant else '/admin/etudiants' }}" class="btn btn-light">Annuler</a>
+                <button type="submit" class="btn btn-primary bg-iut border-0"><i class="bi bi-check-lg me-1"></i>Enregistrer</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% include "etudiants/_modal_scan.html" %}
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/scan.js"></script>
+{% endblock %}

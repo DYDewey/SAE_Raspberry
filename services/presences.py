@@ -1,0 +1,554 @@
+"""Rattachement des pointages aux séances et calcul des présences.
+
+Vocabulaire :
+- séance : un créneau de l'emploi du temps (une ligne de la table seances) ;
+- bloc   : plusieurs séances qui se suivent pour le même cours, groupe, salle et
+           prof (ex : 8h-9h30 + 9h30-11h). L'EDT et l'émargement raisonnent en
+           blocs : badger à 8h (entrée) et à 11h (sortie) compte pour le bloc entier.
+"""
+import re
+from collections import defaultdict
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
+import models
+from config import AVANCE_POINTAGE_MIN, MOTIF_SAE, TOLERANCE_RETARD_MIN
+from services.groupes import etudiant_concerne, groupe_affiche, groupes_effectifs, sont_lies, td_du_tp
+from services.temps import maintenant_paris
+
+PRESENT, RETARD, ABSENT = "Présent", "En retard", "Absent"
+
+
+# ==========================================
+# Rattachement pointage -> séance
+# ==========================================
+
+def est_sae(libelle: str) -> bool:
+    return bool(re.search(MOTIF_SAE, libelle or "", re.IGNORECASE))
+
+
+def trouver_seance(db: Session, boitier, nfc_uid: str, t: datetime):
+    """Retrouve la séance d'un pointage : boîtier -> prof (ou salle en repli)
+    + heure du bip -> séance de l'EDT qui couvre cette heure.
+    Boîtier en mode SAE : séance de SAE du groupe de l'étudiant à cette heure."""
+    if boitier is None:
+        return None
+
+    fenetre = db.query(models.SeanceDB).filter(
+        models.SeanceDB.date_debut <= t + timedelta(minutes=AVANCE_POINTAGE_MIN),
+        models.SeanceDB.date_fin >= t,
+    )
+
+    # Groupes de l'étudiant, pour départager un CM partagé entre plusieurs groupes
+    noms_etudiant = []
+    carte = db.query(models.CarteDB).filter(models.CarteDB.nfc_uid == nfc_uid).first()
+    if carte:
+        noms_etudiant = [g.nom_groupe for g in carte.etudiant.groupes]
+
+    def nom_groupe(seances):
+        return {g.id: g.nom_groupe for g in db.query(models.GroupeDB).filter(
+            models.GroupeDB.id.in_({s.id_groupe for s in seances})).all()}
+
+    candidates = []
+    if boitier.mode_sae and noms_etudiant:
+        # Toutes les SAE de l'IUT à cette heure, puis seulement celles de sa classe
+        libelles = {e.id: e.libelle for e in db.query(models.EnseignementDB).all()}
+        sae = [s for s in fenetre.all() if est_sae(libelles.get(s.id_enseignement))]
+        groupes_sae = nom_groupe(sae)
+        candidates = [s for s in sae if etudiant_concerne(noms_etudiant, groupes_sae.get(s.id_groupe, ""))]
+    if not candidates and boitier.id_prof:
+        candidates = fenetre.filter(models.SeanceDB.id_prof == boitier.id_prof).all()
+    if not candidates and boitier.id_salle:
+        candidates = fenetre.filter(models.SeanceDB.id_salle == boitier.id_salle).all()
+    if not candidates:
+        return None
+    noms_groupes = nom_groupe(candidates)
+
+    def priorite(s):
+        return (
+            not etudiant_concerne(noms_etudiant, noms_groupes.get(s.id_groupe, "")),  # 1. cours de sa classe
+            not (s.date_debut <= t < s.date_fin),      # 2. séance en cours plutôt que la suivante
+            abs((s.date_debut - t).total_seconds()),   # 3. la plus proche
+        )
+
+    return min(candidates, key=priorite)
+
+
+def rattacher_pointages(db: Session, debut: datetime, fin: datetime) -> int:
+    """Recalcule la séance de tous les pointages d'une période (après une
+    synchro EDT ou un changement de prof/salle sur un boîtier)."""
+    boitiers = {b.device_id: b for b in db.query(models.BoitierDB).all()}
+    pointages = db.query(models.PointageDB).filter(
+        models.PointageDB.timestamp >= debut,
+        models.PointageDB.timestamp < fin,
+    ).all()
+    for p in pointages:
+        seance = trouver_seance(db, boitiers.get(p.device_id), p.nfc_uid, p.timestamp)
+        p.id_seance = seance.id if seance else None
+    db.commit()
+    return len(pointages)
+
+
+# ==========================================
+# Blocs (séances contiguës)
+# ==========================================
+
+@dataclass
+class Bloc:
+    seances: list
+    enseignement: object = None
+    groupe: object = None
+    salle: object = None
+    prof: object = None
+
+    @property
+    def id(self):            # id utilisé dans les liens : celui du 1er créneau
+        return self.seances[0].id
+
+    @property
+    def ids(self):
+        return [s.id for s in self.seances]
+
+    @property
+    def debut(self):
+        return self.seances[0].date_debut
+
+    @property
+    def fin(self):
+        return self.seances[-1].date_fin
+
+    @property
+    def code(self):
+        return self.enseignement.code_cours if self.enseignement else ""
+
+    @property
+    def libelle(self):
+        return self.enseignement.libelle if self.enseignement else "Cours inconnu"
+
+    @property
+    def nom_groupe(self):
+        return self.groupe.nom_groupe if self.groupe else "Inconnu"
+
+    @property
+    def nom_salle(self):
+        return self.salle.nom_salle if self.salle else "Inconnue"
+
+    @property
+    def nom_prof(self):
+        if not self.prof or self.prof.nom == "N/A":
+            return ""
+        return f"{self.prof.nom} {self.prof.prenom}".strip()
+
+    def etat(self, maintenant=None):
+        maintenant = maintenant or maintenant_paris()
+        if maintenant < self.debut:
+            return "a_venir"
+        return "en_cours" if maintenant < self.fin else "termine"
+
+
+def _par_id(db, modele, ids):
+    ids = {i for i in ids if i is not None}
+    if not ids:
+        return {}
+    return {o.id: o for o in db.query(modele).filter(modele.id.in_(ids)).all()}
+
+
+def construire_blocs(db: Session, seances, fusionner: bool = True) -> list:
+    """Regroupe les séances contiguës d'un même cours en blocs
+    (fusionner=False : un bloc par créneau, pour l'affichage de la grille)."""
+    par_signature = defaultdict(list)
+    for s in seances:
+        cle = (s.id_enseignement, s.id_groupe, s.id_salle, s.id_prof, s.date_debut.date())
+        par_signature[cle].append(s)
+
+    blocs = []
+    for liste in par_signature.values():
+        liste.sort(key=lambda s: s.date_debut)
+        courant = [liste[0]]
+        for s in liste[1:]:
+            if fusionner and s.date_debut == courant[-1].date_fin:
+                courant.append(s)
+            else:
+                blocs.append(Bloc(courant))
+                courant = [s]
+        blocs.append(Bloc(courant))
+
+    # Chargement des objets liés en une requête par table
+    enseignements = _par_id(db, models.EnseignementDB, [b.seances[0].id_enseignement for b in blocs])
+    groupes = _par_id(db, models.GroupeDB, [b.seances[0].id_groupe for b in blocs])
+    salles = _par_id(db, models.SalleDB, [b.seances[0].id_salle for b in blocs])
+    profs = _par_id(db, models.ProfesseurDB, [b.seances[0].id_prof for b in blocs])
+    for b in blocs:
+        s = b.seances[0]
+        b.enseignement = enseignements.get(s.id_enseignement)
+        b.groupe = groupes.get(s.id_groupe)
+        b.salle = salles.get(s.id_salle)
+        b.prof = profs.get(s.id_prof)
+
+    return sorted(blocs, key=lambda b: (b.debut, b.nom_groupe))
+
+
+def bloc_de_seance(db: Session, seance) -> Bloc:
+    """Le bloc qui contient une séance donnée."""
+    debut_jour = seance.date_debut.replace(hour=0, minute=0, second=0, microsecond=0)
+    memes = db.query(models.SeanceDB).filter(
+        models.SeanceDB.id_enseignement == seance.id_enseignement,
+        models.SeanceDB.id_groupe == seance.id_groupe,
+        models.SeanceDB.id_salle == seance.id_salle,
+        models.SeanceDB.id_prof == seance.id_prof,
+        models.SeanceDB.date_debut >= debut_jour,
+        models.SeanceDB.date_debut < debut_jour + timedelta(days=1),
+    ).all()
+    return next(b for b in construire_blocs(db, memes) if seance.id in b.ids)
+
+
+# ==========================================
+# Statuts
+# ==========================================
+
+def statut_depuis(premier_bip, debut: datetime) -> str:
+    if premier_bip is None:
+        return ABSENT
+    if premier_bip <= debut + timedelta(minutes=TOLERANCE_RETARD_MIN):
+        return PRESENT
+    return RETARD
+
+
+def heure_sortie(bips):
+    """Dernier bip, s'il est distinct de l'entrée (plus de 5 min après)."""
+    if len(bips) > 1 and bips[-1] - bips[0] > timedelta(minutes=5):
+        return bips[-1]
+    return None
+
+
+def ids_groupes_lies(db: Session, noms) -> set:
+    """Id des groupes liés (même groupe, parent ou sous-groupe) à l'un des noms donnés."""
+    noms = list(noms)
+    return {g.id for g in db.query(models.GroupeDB).all() if any(sont_lies(g.nom_groupe, n) for n in noms)}
+
+
+def etudiants_par_groupe(db: Session, ids_groupes) -> dict:
+    """{id_groupe: étudiants attendus aux cours de ce groupe} (voir services/groupes.py).
+    Tous les groupes en une fois : quelques requêtes au lieu de plusieurs par groupe."""
+    noms = {g.id: g.nom_groupe for g in db.query(models.GroupeDB).all()}
+    cibles = {i: noms[i] for i in set(ids_groupes) if i in noms}
+    if not cibles:
+        return {}
+    ids_lies = {i for i, n in noms.items() if any(sont_lies(n, c) for c in cibles.values())}
+    candidats = db.query(models.EtudiantDB).filter(
+        models.EtudiantDB.groupes.any(models.GroupeDB.id.in_(ids_lies))
+    ).order_by(models.EtudiantDB.nom, models.EtudiantDB.prenom).all()
+    resultat = {i: [] for i in cibles}
+    for e in candidats:
+        mes_groupes = [g.nom_groupe for g in e.groupes]
+        for i, nom in cibles.items():
+            if etudiant_concerne(mes_groupes, nom):
+                resultat[i].append(e)
+    return resultat
+
+
+def etudiants_du_groupe(db: Session, id_groupe):
+    """Étudiants attendus aux cours de ce groupe (voir services/groupes.py)."""
+    return etudiants_par_groupe(db, [id_groupe]).get(id_groupe, [])
+
+
+def corrections_manuelles(db: Session, ids_seances) -> dict:
+    """{(id_etudiant, id_seance): statut} saisis à la main par le prof."""
+    ids_seances = list(ids_seances)
+    if not ids_seances:
+        return {}
+    return {(c.id_etudiant, c.id_seance): c.statut for c in db.query(models.PresenceManuelleDB).filter(
+        models.PresenceManuelleDB.id_seance.in_(ids_seances)).all()}
+
+
+def blocs_avec_appel(db: Session, blocs) -> set:
+    """Ids des blocs où l'appel a été fait : au moins un bip ou une correction à la main.
+    Un prof sans boîtier (ou qui ne l'a pas allumé) ne fait pas l'appel : personne ne
+    badge, et le cours ne doit compter ni présent ni absent."""
+    ids = [i for b in blocs for i in b.ids]
+    if not ids:
+        return set()
+    faits = {i for (i,) in db.query(models.PointageDB.id_seance).filter(
+        models.PointageDB.id_seance.in_(ids)).distinct()}
+    faits |= {i for (i,) in db.query(models.PresenceManuelleDB.id_seance).filter(
+        models.PresenceManuelleDB.id_seance.in_(ids)).distinct()}
+    return {b.id for b in blocs if faits.intersection(b.ids)}
+
+
+def statut_manuel(corrections: dict, id_etudiant: int, bloc: Bloc):
+    """Statut saisi à la main pour cet étudiant sur ce bloc, ou None."""
+    for i in bloc.ids:
+        if (id_etudiant, i) in corrections:
+            return corrections[(id_etudiant, i)]
+    return None
+
+
+def presences_bloc(db: Session, bloc: Bloc):
+    """Feuille d'émargement détaillée d'un bloc.
+    Retourne (liste des étudiants, badges hors liste, compteur par statut)."""
+    bips = defaultdict(list)
+    for p in db.query(models.PointageDB).filter(
+        models.PointageDB.id_seance.in_(bloc.ids)
+    ).order_by(models.PointageDB.timestamp).all():
+        bips[p.nfc_uid].append(p.timestamp)
+
+    corrections = corrections_manuelles(db, bloc.ids)
+    liste, uids_connus = [], set()
+    compteur = {PRESENT: 0, RETARD: 0, ABSENT: 0}
+    for etudiant in etudiants_du_groupe(db, bloc.groupe.id) if bloc.groupe else []:
+        uid = etudiant.carte.nfc_uid if etudiant.carte else None
+        heures = bips.get(uid, []) if uid else []
+        if uid:
+            uids_connus.add(uid)
+        manuel = statut_manuel(corrections, etudiant.id, bloc)
+        statut = manuel or statut_depuis(heures[0] if heures else None, bloc.debut)
+        compteur[statut] += 1
+        liste.append({
+            "etudiant": etudiant,
+            "badge": uid,
+            "statut": statut,
+            "manuel": manuel is not None,
+            "arrivee": heures[0] if heures else None,
+            "sortie": heure_sortie(heures),
+        })
+
+    # Badges qui ont bipé mais ne sont pas dans la liste du groupe
+    hors_liste = []
+    for uid, heures in bips.items():
+        if uid in uids_connus:
+            continue
+        carte = db.query(models.CarteDB).filter(models.CarteDB.nfc_uid == uid).first()
+        hors_liste.append({"badge": uid, "etudiant": carte.etudiant if carte else None, "heure": heures[0]})
+
+    return liste, hors_liste, compteur
+
+
+def resumes_blocs(db: Session, blocs) -> dict:
+    """Compteurs de présence de plusieurs blocs en peu de requêtes
+    (utilisé par la grille EDT et le tableau de bord).
+    Retourne {bloc.id: {"effectif", "present", "retard", "absent", "etat", "appel"}}.
+    Sans appel (personne n'a badgé), les compteurs restent à 0."""
+    if not blocs:
+        return {}
+    maintenant = maintenant_paris()
+
+    # Étudiants attendus pour chaque groupe concerné
+    etudiants_groupe = etudiants_par_groupe(db, {b.groupe.id for b in blocs if b.groupe})
+
+    # Premier bip de chaque carte dans chaque séance
+    tous_ids = [i for b in blocs for i in b.ids]
+    corrections = corrections_manuelles(db, tous_ids)
+    appel = blocs_avec_appel(db, blocs)
+    premiers = defaultdict(dict)
+    for id_seance, uid, premier in db.query(
+        models.PointageDB.id_seance, models.PointageDB.nfc_uid, func.min(models.PointageDB.timestamp)
+    ).filter(models.PointageDB.id_seance.in_(tous_ids)).group_by(
+        models.PointageDB.id_seance, models.PointageDB.nfc_uid
+    ).all():
+        premiers[id_seance][uid] = premier
+
+    resultat = {}
+    for b in blocs:
+        id_groupe = b.groupe.id if b.groupe else None
+        premier_par_uid = {}
+        for id_seance in b.ids:
+            for uid, t in premiers[id_seance].items():
+                if uid not in premier_par_uid or t < premier_par_uid[uid]:
+                    premier_par_uid[uid] = t
+        present = retard = 0
+        etudiants = etudiants_groupe.get(id_groupe, [])
+        for e in (etudiants if b.id in appel else []):
+            uid = e.carte.nfc_uid if e.carte else None
+            statut = statut_manuel(corrections, e.id, b) or statut_depuis(premier_par_uid.get(uid), b.debut)
+            present += statut == PRESENT
+            retard += statut == RETARD
+        effectif = len(etudiants)
+        resultat[b.id] = {
+            "effectif": effectif,
+            "present": present,
+            "retard": retard,
+            "absent": effectif - present - retard if b.id in appel else 0,
+            "etat": b.etat(maintenant),
+            "appel": b.id in appel,
+        }
+    return resultat
+
+
+def taux(present, retard, total):
+    """Taux de présence en % (un retard compte comme présent)."""
+    return round(100 * (present + retard) / total) if total else None
+
+
+# ==========================================
+# Suivi des absences
+# ==========================================
+
+def _blocs_commences(db: Session, ids_groupes, debut: datetime, fin: datetime):
+    """Blocs des groupes donnés sur une période, terminés ou en cours (on peut badger
+    jusqu'à AVANCE_POINTAGE_MIN minutes avant le début). Voir pas_encore_compte()."""
+    if not ids_groupes:
+        return []
+    limite = maintenant_paris() + timedelta(minutes=AVANCE_POINTAGE_MIN)
+    seances = db.query(models.SeanceDB).filter(
+        models.SeanceDB.id_groupe.in_(ids_groupes),
+        models.SeanceDB.date_debut >= debut,
+        models.SeanceDB.date_debut <= min(fin, limite),
+    ).all()
+    blocs = construire_blocs(db, seances)
+    appel = blocs_avec_appel(db, blocs)
+    return [b for b in blocs if b.id in appel]  # les cours sans appel ne comptent pas
+
+
+def pas_encore_compte(bloc, heures, maintenant) -> bool:
+    """Étudiant pas encore badgé alors que le cours vient de commencer : il est encore
+    dans la tolérance de retard, on ne le compte pas encore absent. Passé ce délai, il est
+    absent tout de suite (comme à l'appel), et passe en retard s'il badge plus tard."""
+    return not heures and maintenant < bloc.debut + timedelta(minutes=TOLERANCE_RETARD_MIN)
+
+
+def _bips_par_seance(db: Session, uids, ids_seances):
+    """{(uid, id_seance): [timestamps triés]}"""
+    bips = defaultdict(list)
+    if not uids or not ids_seances:
+        return bips
+    for p in db.query(models.PointageDB).filter(
+        models.PointageDB.nfc_uid.in_(uids),
+        models.PointageDB.id_seance.in_(ids_seances),
+    ).order_by(models.PointageDB.timestamp).all():
+        bips[(p.nfc_uid, p.id_seance)].append(p.timestamp)
+    return bips
+
+
+def historique_etudiant(db: Session, etudiant, debut: datetime, fin: datetime):
+    """Cours d'un étudiant sur une période, avec son statut (cours terminés ou
+    en cours, une fois la tolérance de retard passée ou dès qu'il a badgé)."""
+    noms = [g.nom_groupe for g in etudiant.groupes]
+    blocs = [b for b in _blocs_commences(db, ids_groupes_lies(db, noms), debut, fin)
+             if b.groupe and etudiant_concerne(noms, b.groupe.nom_groupe)]
+    uid = etudiant.carte.nfc_uid if etudiant.carte else None
+    bips = _bips_par_seance(db, [uid] if uid else [], [i for b in blocs for i in b.ids])
+    corrections = corrections_manuelles(db, [i for b in blocs for i in b.ids])
+
+    maintenant = maintenant_paris()
+    lignes = []
+    for b in sorted(blocs, key=lambda b: b.debut, reverse=True):
+        heures = sorted(t for i in b.ids for t in bips.get((uid, i), []))
+        manuel = statut_manuel(corrections, etudiant.id, b)
+        if not manuel and pas_encore_compte(b, heures, maintenant):
+            continue
+        lignes.append({
+            "bloc": b,
+            "statut": manuel or statut_depuis(heures[0] if heures else None, b.debut),
+            "manuel": manuel is not None,
+            "arrivee": heures[0] if heures else None,
+            "sortie": heure_sortie(heures),
+        })
+    return lignes
+
+
+def statuts_etudiants(db: Session, etudiants, debut: datetime, fin: datetime):
+    """Pour chaque étudiant et chaque cours commencé de la période qui le concerne :
+    (étudiant, bloc, statut, saisi à la main ?, heures de badge triées)."""
+    ids_groupes = ids_groupes_lies(db, {g.nom_groupe for e in etudiants for g in e.groupes})
+    blocs = _blocs_commences(db, ids_groupes, debut, fin)
+    uids = [e.carte.nfc_uid for e in etudiants if e.carte]
+    bips = _bips_par_seance(db, uids, [i for b in blocs for i in b.ids])
+    corrections = corrections_manuelles(db, [i for b in blocs for i in b.ids])
+
+    # Blocs rangés par nom de groupe, et liste des blocs d'un étudiant calculée une seule
+    # fois par combinaison de groupes (les étudiants d'un même TP partagent la même) :
+    # etudiant_concerne() n'est plus appelé pour chaque étudiant x chaque bloc.
+    blocs_par_groupe = defaultdict(list)
+    for b in blocs:
+        if b.groupe:
+            blocs_par_groupe[b.groupe.nom_groupe].append(b)
+    blocs_de = {}
+
+    maintenant = maintenant_paris()
+    for e in etudiants:
+        mes_groupes = [g.nom_groupe for g in e.groupes]
+        cle = tuple(sorted(mes_groupes))
+        if cle not in blocs_de:
+            blocs_de[cle] = [b for nom, liste in blocs_par_groupe.items()
+                             if etudiant_concerne(mes_groupes, nom) for b in liste]
+        uid = e.carte.nfc_uid if e.carte else None
+        for b in blocs_de[cle]:
+            heures = sorted(t for i in b.ids for t in bips.get((uid, i), []))
+            manuel = statut_manuel(corrections, e.id, b)
+            if not manuel and pas_encore_compte(b, heures, maintenant):
+                continue
+            yield e, b, manuel or statut_depuis(heures[0] if heures else None, b.debut), manuel is not None, heures
+
+
+def bilan_etudiants(db: Session, etudiants, debut: datetime, fin: datetime):
+    """Nombre de présences / retards / absences de chaque étudiant sur une période."""
+    comptes = {e.id: {PRESENT: 0, RETARD: 0, ABSENT: 0} for e in etudiants}
+    for e, _, statut, _, _ in statuts_etudiants(db, etudiants, debut, fin):
+        comptes[e.id][statut] += 1
+    bilan = []
+    for e in etudiants:
+        compte = comptes[e.id]
+        total = sum(compte.values())
+        bilan.append({
+            "etudiant": e,
+            "cours": total,
+            "present": compte[PRESENT],
+            "retard": compte[RETARD],
+            "absent": compte[ABSENT],
+            "taux": taux(compte[PRESENT], compte[RETARD], total),
+            "taux_absence": pourcentage(compte[ABSENT], total),
+        })
+    return bilan
+
+
+def pourcentage(nombre, total):
+    return round(100 * nombre / total) if total else None
+
+
+def td_de(noms_groupes) -> str:
+    """Classe (TD) d'un étudiant pour le bilan par classe : 'BUT2-TD3', sinon sa promo."""
+    effectifs = groupes_effectifs(noms_groupes)
+    td = next((n for n in effectifs if re.fullmatch(r"BUT\d-TD\d+", n)), None)
+    tp = next((n for n in effectifs if re.fullmatch(r"BUT\d-TP[A-Z]", n)), None)
+    promo = next((n for n in effectifs if re.fullmatch(r"BUT\d", n)), None)
+    return td or (td_du_tp(tp) if tp else promo) or "Sans groupe"
+
+
+def bilan_par_classe(bilan, seuil_risque=80):
+    """Totaux par TD ; si tous les étudiants sont dans le même TD, par groupe le plus précis
+    (TP ou demi-groupe). Retourne une liste triée par nom de classe."""
+    def regrouper(cle_de):
+        classes = defaultdict(lambda: {"etudiants": 0, "cours": 0, "present": 0, "retard": 0,
+                                       "absent": 0, "a_risque": 0})
+        for b in bilan:
+            c = classes[cle_de([g.nom_groupe for g in b["etudiant"].groupes])]
+            c["etudiants"] += 1
+            c["a_risque"] += b["taux"] is not None and b["taux"] < seuil_risque
+            for k in ("cours", "present", "retard", "absent"):
+                c[k] += b[k]
+        return classes
+
+    classes = regrouper(td_de)
+    if len(classes) <= 1:
+        classes = regrouper(lambda noms: groupe_affiche(noms) or "Sans groupe")
+    resultat = []
+    for nom, c in sorted(classes.items()):
+        c["nom"] = nom
+        c["taux"] = taux(c["present"], c["retard"], c["cours"])
+        c["taux_absence"] = pourcentage(c["absent"], c["cours"])
+        resultat.append(c)
+    return resultat
+
+
+def absences_detaillees(db: Session, etudiants, debut: datetime, fin: datetime):
+    """Une ligne par absence ou retard (cours, horaires, étudiant), triée par date puis nom :
+    de quoi reporter les absences dans ScoDoc sans feuille de présence."""
+    lignes = [{"etudiant": e, "bloc": b, "statut": statut, "manuel": manuel,
+               "arrivee": heures[0] if heures and statut == RETARD else None}
+              for e, b, statut, manuel, heures in statuts_etudiants(db, etudiants, debut, fin)
+              if statut != PRESENT]
+    lignes.sort(key=lambda l: (l["bloc"].debut, l["bloc"].nom_groupe, l["etudiant"].nom, l["etudiant"].prenom))
+    return lignes

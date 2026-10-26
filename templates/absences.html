@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% from "_macros.html" import select_classe, barre, classe_taux, anneau, pastille %}
+{% block titre %}Suivi des absences{% endblock %}
+
+{% block contenu %}
+<div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-4">
+    <div>
+        <h1 class="h3 titre-page">Suivi des absences</h1>
+        <div class="sous-titre">Du {{ du[8:10] }}/{{ du[5:7] }}/{{ du[:4] }} au {{ au[8:10] }}/{{ au[5:7] }}/{{ au[:4] }} · un retard compte comme une présence</div>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <div class="dropdown">
+            <button class="btn btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                <i class="bi bi-file-earmark-arrow-up me-1"></i>Feuille ScoDoc
+            </button>
+            <form class="dropdown-menu dropdown-menu-end p-3 shadow" style="width: 300px" method="get" action="/admin/absences/scodoc">
+                <div class="small text-muted mb-2">Absences (ABS) et retards (RET) de la semaine par demi-journée, au format d'import de ScoDoc.</div>
+                <label class="form-label small mb-1">Promo ou groupe</label>
+                <select name="groupe" class="form-select form-select-sm mb-2">
+                    <option value="0">Toutes les promos</option>
+                    {% for promo, liste in groupes.items() %}
+                    <optgroup label="{{ promo }}">
+                        {% for g in liste %}<option value="{{ g.id }}">{{ g.nom_groupe }}</option>{% endfor %}
+                    </optgroup>
+                    {% endfor %}
+                </select>
+                <label class="form-label small mb-1">Semaine</label>
+                <input type="week" name="semaine" value="{{ semaine }}" class="form-control form-control-sm mb-3" required>
+                <button class="btn btn-sm btn-primary w-100" type="submit"><i class="bi bi-download me-1"></i>Télécharger</button>
+            </form>
+        </div>
+        <div class="dropdown">
+            <button class="btn btn-outline-success dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-file-earmark-excel me-1"></i>Exporter
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                <li><a class="dropdown-item" href="/admin/absences/detail?groupe={{ groupe_choisi or 0 }}&du={{ du }}&au={{ au }}"><i class="bi bi-list-ul me-2"></i>Liste des absences<div class="small text-muted">une ligne par absence ou retard</div></a></li>
+                <li><a class="dropdown-item" href="/admin/absences/export?groupe={{ groupe_choisi or 0 }}&du={{ du }}&au={{ au }}"><i class="bi bi-person-lines-fill me-2"></i>Bilan par étudiant<div class="small text-muted">totaux de chaque étudiant</div></a></li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<form class="card mb-4" method="get">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-4">{{ select_classe(groupes, groupe_choisi) }}</div>
+            <div class="col-auto ms-md-auto small text-muted">Du</div>
+            <div class="col-md-2"><input type="date" name="du" value="{{ du }}" class="form-control"></div>
+            <div class="col-auto small text-muted">au</div>
+            <div class="col-md-2"><input type="date" name="au" value="{{ au }}" class="form-control"></div>
+            <div class="col-auto"><button class="btn btn-outline-secondary" type="submit">Appliquer</button></div>
+        </div>
+    </div>
+</form>
+
+{# --- Chiffres clés --- #}
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3"><div class="card h-100"><div class="card-body tuile">
+        {{ anneau(taux_global) }}
+        <div><div class="stat-libelle">Présence</div><div class="tuile-detail">{{ total.present + total.retard }} sur {{ total.cours }} cours</div></div>
+    </div></div></div>
+    <div class="col-6 col-lg-3"><div class="card h-100"><div class="card-body tuile">
+        {{ anneau(total.taux_absence, "var(--absent)") }}
+        <div><div class="stat-libelle">Absence</div><div class="tuile-detail">{{ total.absent }} absence{{ "s" if total.absent > 1 }}</div></div>
+    </div></div></div>
+    <div class="col-6 col-lg-3"><div class="card h-100"><div class="card-body tuile">
+        {{ anneau(total.taux_retard, "var(--retard)") }}
+        <div><div class="stat-libelle">Retards</div><div class="tuile-detail">{{ total.retard }} retard{{ "s" if total.retard > 1 }}</div></div>
+    </div></div></div>
+    <div class="col-6 col-lg-3"><div class="card h-100"><div class="card-body tuile">
+        <div class="stat-icone {{ 'bg-danger-subtle text-danger' if total.a_risque else 'bg-success-subtle text-success' }}"><i class="bi bi-{{ 'exclamation-triangle' if total.a_risque else 'check2-circle' }}"></i></div>
+        <div><div class="stat-valeur">{{ total.a_risque }}<span class="fs-6 text-muted fw-normal"> / {{ bilan | length }}</span></div><div class="stat-libelle">étudiant{{ "s" if total.a_risque > 1 }} sous 80 % de présence</div></div>
+    </div></div></div>
+</div>
+
+{# --- Par classe --- #}
+{% if classes | length > 1 %}
+<h2 class="h6 text-uppercase text-muted fw-semibold mb-3">Par classe</h2>
+<div class="row g-3 mb-4">
+    {% for c in classes %}
+    {% set id_classe = ids_groupes.get(c.nom) %}
+    <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
+        <a class="card h-100 carte-classe text-reset text-decoration-none {% if not id_classe %}pe-none{% endif %}"
+           href="?groupe={{ id_classe or 0 }}&du={{ du }}&au={{ au }}">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <div class="fw-bold">{{ c.nom }}</div>
+                        <div class="small text-muted">{{ c.etudiants }} étudiant{{ "s" if c.etudiants > 1 }}</div>
+                    </div>
+                    {{ anneau(c.taux, taille="petit") }}
+                </div>
+                {{ barre(c.present, c.retard, c.absent) }}
+                <div class="d-flex justify-content-between small mt-2">
+                    {% if c.taux_absence is none %}<span class="text-muted"><i class="bi bi-slash-circle me-1"></i>Aucun appel</span>
+                    {% else %}<span class="text-danger"><i class="bi bi-x-circle me-1"></i>{{ c.taux_absence }} % d'absence</span>{% endif %}
+                    {% if c.a_risque %}<span class="text-danger-emphasis fw-semibold" title="Étudiants sous 80 % de présence"><i class="bi bi-exclamation-triangle me-1"></i>{{ c.a_risque }}</span>{% endif %}
+                </div>
+            </div>
+        </a>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{# --- Par étudiant --- #}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h2 class="h6 text-uppercase text-muted fw-semibold mb-0">Par étudiant <span class="fw-normal">· les plus absents en premier</span></h2>
+    <div class="input-group input-group-sm" style="max-width: 260px">
+        <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+        <input type="search" id="recherche" class="form-control" placeholder="Rechercher un étudiant" aria-label="Rechercher un étudiant">
+    </div>
+</div>
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Étudiant</th>
+                    <th>Classe</th>
+                    <th class="text-center">Cours</th>
+                    <th class="text-center" title="Présences / Retards / Absences">P · R · A</th>
+                    <th class="text-center">Présence</th>
+                    <th class="text-center">Absence</th>
+                    <th style="width: 160px"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for b in bilan %}
+                {% set e = b.etudiant %}
+                <tr data-nom="{{ (e.nom ~ ' ' ~ e.prenom ~ ' ' ~ e.numero_etudiant) | lower }}">
+                    <td>
+                        <a href="/admin/etudiants/{{ e.id }}?du={{ du }}&au={{ au }}" class="fw-semibold text-decoration-none">{{ e.nom | upper }} {{ e.prenom }}</a>
+                        <div class="small text-muted">{{ e.numero_etudiant }}{% if not e.carte %} · <span class="text-warning-emphasis">sans carte</span>{% endif %}</div>
+                    </td>
+                    <td class="small text-muted">{{ e.groupes | groupe_affiche }}</td>
+                    <td class="text-center">{{ b.cours }}</td>
+                    <td class="text-center text-nowrap fw-semibold">
+                        <span class="text-success">{{ b.present }}</span> ·
+                        <span style="color:#9a7500">{{ b.retard }}</span> ·
+                        <span class="{{ 'text-danger' if b.absent else 'text-muted' }}">{{ b.absent }}</span>
+                    </td>
+                    <td class="text-center">{{ pastille(b.taux, "presence") }}</td>
+                    <td class="text-center">{{ pastille(b.taux_absence, "absence") }}</td>
+                    <td>{{ barre(b.present, b.retard, b.absent) }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" class="text-center text-muted py-5">Aucun étudiant dans cette classe.</td></tr>
+                {% endfor %}
+                <tr id="aucun-resultat" class="d-none"><td colspan="7" class="text-center text-muted py-4">Aucun étudiant ne correspond.</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Recherche instantanée dans le tableau (nom, prénom ou numéro)
+    document.getElementById('recherche').addEventListener('input', e => {
+        const texte = e.target.value.trim().toLowerCase();
+        let visibles = 0;
+        document.querySelectorAll('tr[data-nom]').forEach(tr => {
+            const ok = tr.dataset.nom.includes(texte);
+            tr.classList.toggle('d-none', !ok);
+            visibles += ok;
+        });
+        document.getElementById('aucun-resultat').classList.toggle('d-none', visibles > 0);
+    });
+</script>
+{% endblock %}

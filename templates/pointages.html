@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% from "_macros.html" import select_classe %}
+{% block titre %}Pointages{% endblock %}
+
+{% block contenu %}
+<div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-4">
+    <div>
+        <h1 class="h3 titre-page">Pointages</h1>
+        <div class="sous-titre">{{ total }} bip(s) correspondant aux filtres
+            {% if total > limite %}· <strong>{{ limite }} plus récents affichés</strong>, affinez les filtres{% endif %}</div>
+    </div>
+</div>
+
+<!-- Filtres : tous combinables -->
+<form class="card mb-3" method="get">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label small text-muted mb-0">Étudiant</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="Nom, numéro ou UID de carte…">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small text-muted mb-0">Groupe</label>
+                {{ select_classe(groupes, groupe_choisi, toutes="Tous les groupes") }}
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small text-muted mb-0">Enseignement</label>
+                <select name="enseignement" class="form-select">
+                    <option value="0">Tous</option>
+                    {% for e in enseignements %}
+                    <option value="{{ e.id }}" {% if enseignement == e.id %}selected{% endif %}>{{ e.code_cours }} · {{ e.libelle }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-0">Salle</label>
+                <select name="salle" class="form-select">
+                    <option value="0">Toutes</option>
+                    {% for s in salles %}
+                    <option value="{{ s.id }}" {% if salle == s.id %}selected{% endif %}>{{ s.nom_salle }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small text-muted mb-0">Du</label>
+                <input type="date" name="du" value="{{ du }}" class="form-control">
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small text-muted mb-0">Au</label>
+                <input type="date" name="au" value="{{ au }}" class="form-control">
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small text-muted mb-0">De (heure)</label>
+                <input type="time" name="de" value="{{ de }}" class="form-control">
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small text-muted mb-0">À (heure)</label>
+                <input type="time" name="a" value="{{ a }}" class="form-control">
+            </div>
+            <div class="col-md-4 d-flex gap-2 justify-content-end">
+                <a href="/admin/pointages" class="btn btn-outline-secondary">Réinitialiser</a>
+                <button class="btn btn-primary bg-iut border-0" type="submit"><i class="bi bi-funnel me-1"></i>Filtrer</button>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead>
+                <tr><th>Date et heure</th><th>Étudiant</th><th>Cours</th><th>Groupe</th><th>Salle</th><th>Boîtier</th></tr>
+            </thead>
+            <tbody>
+                {% for p, etu, seance, boitier in lignes %}
+                <tr>
+                    <td class="text-nowrap">{{ p.timestamp.strftime("%d/%m/%Y") }} <span class="fw-semibold">{{ p.timestamp.strftime("%H:%M:%S") }}</span></td>
+                    <td>
+                        {% if etu %}<a href="/admin/etudiants/{{ etu.id }}" class="text-decoration-none">{{ etu.nom | upper }} {{ etu.prenom }}</a>
+                        <div class="small text-muted">{{ etu.numero_etudiant }}</div>
+                        {% else %}<span class="text-muted"><i class="bi bi-question-circle me-1"></i>Carte inconnue</span>
+                        <div class="small text-muted font-monospace">{{ p.nfc_uid }}</div>{% endif %}
+                    </td>
+                    <td>
+                        {% if seance %}{% set ens = noms_ens.get(seance.id_enseignement) %}
+                        <a href="/admin/seances/{{ seance.id }}" class="text-decoration-none">{{ ens.code_cours if ens else "?" }}</a>
+                        <div class="small text-muted">{{ seance.date_debut.strftime("%H:%M") }}–{{ seance.date_fin.strftime("%H:%M") }}</div>
+                        {% else %}<span class="small text-muted">Hors cours</span>{% endif %}
+                    </td>
+                    <td>{{ noms_groupes.get(seance.id_groupe, "") if seance else "" }}</td>
+                    <td>{{ noms_salles.get(seance.id_salle if seance else (boitier.id_salle if boitier else None), "—") }}</td>
+                    <td><span class="badge text-bg-light border"><i class="bi bi-router me-1"></i>{{ p.device_id }}</span></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="text-center text-muted py-4">Aucun bip ne correspond à ces filtres.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

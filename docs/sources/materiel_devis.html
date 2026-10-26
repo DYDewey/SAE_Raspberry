@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Réflexion sur le matériel et devis</title>
+<style>
+  @page { size: A4; margin: 18mm 18mm 16mm; }
+  body { font-family: "Segoe UI", Arial, sans-serif; font-size: 10.5pt; line-height: 1.45; color: #222; }
+  h1 { font-size: 18pt; margin: 0 0 2mm; color: #1b3a5c; }
+  h2 { font-size: 13pt; margin: 7mm 0 2mm; color: #1b3a5c; border-bottom: 1px solid #c9d4e0; padding-bottom: 1mm; }
+  h3 { font-size: 11pt; margin: 4mm 0 1mm; }
+  p { margin: 1.5mm 0; }
+  .sous-titre { color: #555; margin-bottom: 6mm; }
+  table { width: 100%; border-collapse: collapse; margin: 2mm 0 3mm; font-size: 9.5pt; }
+  th, td { border: 1px solid #c9d4e0; padding: 1.5mm 2mm; text-align: left; vertical-align: top; }
+  th { background: #eaf0f6; }
+  td.n { text-align: right; white-space: nowrap; }
+  tr.total td { font-weight: bold; background: #f4f7fa; }
+  .note { font-size: 9pt; color: #555; }
+  .saut { page-break-before: always; }
+  ul { margin: 1mm 0; padding-left: 6mm; }
+  li { margin: 0.8mm 0; }
+</style>
+</head>
+<body>
+
+<h1>Le matériel : était-il adapté ? Et le devis</h1>
+<p class="sous-titre">SAÉ 5.B.01, pointage des étudiants par badge NFC. Valentin Verstaevel et Simon Leclercq-Speter. Prix relevés en octobre 2026.</p>
+
+<h2>1. Le matériel fourni était-il adapté ?</h2>
+
+<p>L'IUT nous a fourni un Raspberry Pi 3 modèle B avec son alimentation et une carte SD, un lecteur NFC RC522 et un kit de prototypage sans soudure (plaque d'essai, fils, LED, résistances, buzzer).</p>
+
+<p>Pour faire un prototype, oui, ça a très bien marché. Le Pi 3B a largement assez de puissance pour notre programme : il lit une carte, écrit une ligne dans SQLite et envoie les bips au serveur en arrière-plan, sans interface graphique. Le Wi-Fi est intégré, le GPIO donne accès au SPI pour le lecteur et à l'I2C, donc on n'a rien eu à acheter en plus pour faire fonctionner le pointage. La plaque d'essai nous a permis de changer le câblage plusieurs fois sans rien abîmer.</p>
+
+<p>Par contre, si on imagine ce boîtier utilisé tous les jours dans toutes les salles du département, plusieurs choses ne vont pas :</p>
+
+<ul>
+  <li><b>Le Pi 3B est surdimensionné.</b> On utilise une toute petite partie de ses capacités. Il est plus gros, il chauffe plus et il consomme plus qu'un Pi Zero 2 W qui a pourtant un processeur de la même famille (4 cœurs Cortex-A53). Il coûte aussi deux fois plus cher.</li>
+  <li><b>Il n'y a pas d'horloge.</b> Le Raspberry Pi n'a pas d'horloge sauvegardée par une pile. S'il démarre dans une salle sans réseau, il ne connaît pas l'heure et tous les bips sont faux. Comme le fonctionnement hors ligne est le point principal du sujet, c'est le vrai manque du matériel fourni. Nous avons ajouté un module RTC DS3231 sur le bus I2C.</li>
+  <li><b>La carte SD classique s'use.</b> Chaque bip est une écriture sur la carte. Sur une année, avec des coupures de courant de temps en temps, une carte d'entrée de gamme peut se corrompre. Une carte « haute endurance », faite pour les caméras de surveillance qui écrivent en continu, est plus sûre.</li>
+  <li><b>La plaque d'essai ne tient pas dans le temps.</b> Les fils sautent quand on transporte le boîtier, alors que le sujet demande un boîtier transportable. Pour un vrai produit il faut souder les composants sur une petite plaque et tout mettre dans un boîtier fermé.</li>
+  <li><b>Le RC522 est suffisant.</b> Il lit l'identifiant des cartes étudiantes (MIFARE, 13,56 MHz) à environ 3 cm, ce qui est la bonne distance pour éviter de badger par erreur. On a regardé le PN532, qui lit plus de types de cartes et un peu plus loin, mais il coûte presque le double et on n'en a pas besoin : on lit seulement l'identifiant de la carte, pas son contenu. On garde donc le RC522.</li>
+</ul>
+
+<h3>Ce que nous proposons</h3>
+
+<table>
+  <tr><th>Élément</th><th>Fourni par l'IUT</th><th>Notre choix</th><th>Pourquoi</th></tr>
+  <tr><td>Carte</td><td>Raspberry Pi 3B</td><td>Raspberry Pi Zero 2 WH</td><td>Même famille de processeur, assez puissant pour notre script. Plus petit, consomme moins, deux fois moins cher. Version « H » : connecteur GPIO déjà soudé.</td></tr>
+  <tr><td>Lecteur NFC</td><td>RC522</td><td>RC522 (on garde)</td><td>Lit les cartes étudiantes, pas cher, bien documenté.</td></tr>
+  <tr><td>Horloge</td><td>aucune</td><td>Module RTC DS3231 (ajout)</td><td>Heure juste même sans réseau et après une coupure de courant.</td></tr>
+  <tr><td>Stockage</td><td>Carte SD standard</td><td>microSD haute endurance 32 Go</td><td>Supporte beaucoup plus d'écritures, moins de risque de corruption.</td></tr>
+  <tr><td>Alimentation</td><td>Alimentation micro-USB</td><td>Alimentation officielle 12,5 W</td><td>Compatible Zero 2 W, stable. Une batterie USB du commerce peut la remplacer pour un usage sans prise.</td></tr>
+  <tr><td>Montage</td><td>Plaque d'essai et fils</td><td>Petite plaque à souder + boîtier imprimé en 3D</td><td>Plus de fils qui se débranchent, boîtier facile à transporter.</td></tr>
+  <tr><td>Signaux</td><td>LED et buzzer du kit</td><td>3 LED, buzzer actif (on garde)</td><td>L'étudiant voit et entend tout de suite si son bip est pris en compte.</td></tr>
+</table>
+
+<p>Côté serveur, il n'y a rien à acheter : le logiciel tourne sur un PC ou une machine virtuelle de l'IUT, avec PostgreSQL dans Docker. Pour enregistrer les cartes des nouveaux étudiants, la secrétaire n'a pas besoin d'un lecteur USB en plus : un des boîtiers peut être réglé en « boîtier d'accueil », c'est déjà prévu dans notre logiciel.</p>
+
+<h2>2. Devis détaillé</h2>
+
+<h3>Prix d'un boîtier (matériel)</h3>
+
+<table>
+  <tr><th>Article</th><th>Où on a trouvé le prix</th><th class="n">Prix TTC</th></tr>
+  <tr><td>Raspberry Pi Zero 2 WH</td><td>Kubii</td><td class="n">19,90 €</td></tr>
+  <tr><td>Module RFID RC522 (avec une carte et un badge de test)</td><td>OpenELAB</td><td class="n">5,49 €</td></tr>
+  <tr><td>Module RTC DS3231 avec pile</td><td>buyzero.de</td><td class="n">3,99 €</td></tr>
+  <tr><td>microSD SanDisk High Endurance 32 Go</td><td>LDLC</td><td class="n">26,75 €</td></tr>
+  <tr><td>Alimentation officielle Raspberry Pi 12,5 W micro-USB</td><td>Kubii</td><td class="n">8,70 €</td></tr>
+  <tr><td>Boîtier imprimé en 3D (environ 60 g de PLA)</td><td>estimation</td><td class="n">3,00 €</td></tr>
+  <tr><td>3 LED, 3 résistances, buzzer, plaque à souder, fils</td><td>estimation</td><td class="n">4,00 €</td></tr>
+  <tr class="total"><td colspan="2">Total matériel pour un boîtier</td><td class="n">71,83 €</td></tr>
+</table>
+
+<p class="note">À comparer avec le matériel fourni : le Pi 3B seul coûte environ 43 € chez Kubii, soit plus de la moitié du prix de notre boîtier complet.</p>
+
+<h3>Main-d'œuvre</h3>
+<p>On compte 30 minutes pour souder, monter et tester un boîtier, et 2 heures une seule fois pour installer le serveur et le paramétrer (import des étudiants, emploi du temps, création des boîtiers). Taux horaire retenu : 25 € de l'heure.</p>
+
+<table>
+  <tr><th>Poste</th><th class="n">1 boîtier</th><th class="n">5 boîtiers</th><th class="n">10 boîtiers</th></tr>
+  <tr><td>Matériel (71,83 € par boîtier)</td><td class="n">71,83 €</td><td class="n">359,15 €</td><td class="n">718,30 €</td></tr>
+  <tr><td>Montage et test (12,50 € par boîtier)</td><td class="n">12,50 €</td><td class="n">62,50 €</td><td class="n">125,00 €</td></tr>
+  <tr><td>Installation du serveur (une fois)</td><td class="n">50,00 €</td><td class="n">50,00 €</td><td class="n">50,00 €</td></tr>
+  <tr class="total"><td>Coût total</td><td class="n">134,33 €</td><td class="n">471,65 €</td><td class="n">893,30 €</td></tr>
+  <tr><td>Soit par boîtier</td><td class="n">134,33 €</td><td class="n">94,33 €</td><td class="n">89,33 €</td></tr>
+</table>
+
+<h3>Prix de vente proposés</h3>
+<p>On a fixé les prix en ajoutant une marge au coût ci-dessus. Plus on commande, moins le boîtier coûte cher, parce que l'installation du serveur n'est payée qu'une fois.</p>
+
+<table>
+  <tr><th>Offre</th><th class="n">Prix TTC</th><th class="n">Prix par boîtier</th><th>Ce qui est compris</th></tr>
+  <tr><td>1 boîtier</td><td class="n">169 €</td><td class="n">169 €</td><td rowspan="3">Boîtiers montés et testés, installation du serveur, mise en service, mises à jour du logiciel pendant un an.</td></tr>
+  <tr><td>Pack 5 boîtiers</td><td class="n">749 €</td><td class="n">149,80 €</td></tr>
+  <tr><td>Pack 10 boîtiers</td><td class="n">1 390 €</td><td class="n">139 €</td></tr>
+</table>
+
+<p class="note">Les prix des composants changent souvent, surtout ceux des Raspberry Pi qui ont beaucoup augmenté en 2026 à cause du prix de la mémoire. Ils seraient à revérifier au moment de commander. Les cartes étudiantes existent déjà, il n'y a donc pas de badges à acheter.</p>
+
+<h3>Sources des prix</h3>
+<ul class="note">
+  <li>Kubii, Raspberry Pi Zero 2 W / WH : kubii.com/en/nano-computers/3455-raspberry-pi-zero-2-w-wh.html</li>
+  <li>Kubii, Raspberry Pi 3 Model B : kubii.com/en/nano-computers/2119-raspberry-pi-3-model-b-1-gb-5056561800318.html</li>
+  <li>Kubii, alimentation micro-USB 12,5 W : kubii.com/en/power-supplies/3456-raspberry-pi-micro-usb-power-supply-125w-3272496308534.html</li>
+  <li>OpenELAB, kit RFID RC522 : openelab.io/fr/products/rfid-kit-rc522</li>
+  <li>buyzero.de, module DS3231 : buyzero.de/a/s/products/ds3231-real-time-clock-modul-fur-raspberry-pi</li>
+  <li>LDLC, SanDisk High Endurance 32 Go : ldlc.com/fiche/PB00313629.html</li>
+</ul>
+
+</body>
+</html>

@@ -1,0 +1,9 @@
+{# Un ou plusieurs émargements (un CM commun à plusieurs groupes en a un par groupe) #}
+{% if contextes | length > 1 %}
+<div class="alert alert-info py-2 small"><i class="bi bi-people me-1"></i>Cours commun à {{ contextes | length }} groupes : un émargement par groupe.</div>
+{% endif %}
+{% for c in contextes %}
+    {% set bloc, etat, liste, hors_liste, compteur, limite_retard = c.bloc, c.etat, c.liste, c.hors_liste, c.compteur, c.limite_retard %}
+    {% include "edt/_emargement.html" %}
+    {% if not loop.last %}<hr class="my-4">{% endif %}
+{% endfor %}

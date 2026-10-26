@@ -1,0 +1,5 @@
+mfrc522==0.0.7
+RPi.GPIO
+spidev
+requests
+python-dotenv

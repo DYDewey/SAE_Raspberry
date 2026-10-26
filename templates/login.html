@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block titre %}Connexion{% endblock %}
+{% block conteneur %}page-login{% endblock %}
+
+{% block contenu %}
+<div class="card shadow-lg">
+    <div class="card-body p-4 p-md-5">
+        <div class="text-center mb-4">
+            <span class="logo-badge bg-iut text-white fs-4 mb-3" style="width:56px;height:56px;border-radius:14px">
+                <i class="bi bi-broadcast-pin"></i>
+            </span>
+            <h1 class="h4 fw-bold mb-1">Pointage IUT</h1>
+            <p class="text-muted small mb-0">Interface d'administration</p>
+        </div>
+        <form method="post" action="/login">
+            <input type="hidden" name="suivant" value="{{ suivant }}">
+            <div class="form-floating mb-3">
+                <input type="text" class="form-control" id="identifiant" name="identifiant" placeholder="Identifiant"
+                       value="{{ identifiant or '' }}" autocomplete="username" required autofocus>
+                <label for="identifiant">Identifiant</label>
+            </div>
+            <div class="form-floating mb-4">
+                <input type="password" class="form-control" id="mot_de_passe" name="mot_de_passe" placeholder="Mot de passe"
+                       autocomplete="current-password" required>
+                <label for="mot_de_passe">Mot de passe</label>
+            </div>
+            <button type="submit" class="btn btn-primary bg-iut border-0 w-100 py-2 fw-semibold">
+                <i class="bi bi-box-arrow-in-right me-1"></i>Se connecter
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

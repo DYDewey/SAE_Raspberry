@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>BipClasse</title>
+<style>
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", Arial, sans-serif; color: #1f2a37; font-size: 10.5pt; line-height: 1.45; }
+  .haut { background: #1b3a5c; color: #fff; padding: 13mm 18mm 10mm; }
+  .haut h1 { font-size: 34pt; margin: 0; letter-spacing: 0.5px; }
+  .haut .accroche { font-size: 15pt; margin: 2mm 0 0; color: #cfe0f1; }
+  .contenu { padding: 9mm 18mm 0; }
+  .intro { font-size: 12pt; margin: 0 0 5mm; }
+  .grille { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm 8mm; }
+  .bloc h2 { font-size: 12pt; margin: 0 0 1mm; color: #1b3a5c; }
+  .bloc p { margin: 0; }
+  .etapes { display: flex; gap: 4mm; margin: 6mm 0; }
+  .etape { flex: 1; background: #eef3f8; border-radius: 3mm; padding: 4mm; }
+  .etape b { display: block; font-size: 20pt; color: #2e7d4f; line-height: 1; margin-bottom: 1mm; }
+  h2.titre { font-size: 15pt; color: #1b3a5c; margin: 0 0 3mm; }
+  .prix { display: flex; gap: 5mm; }
+  .offre { flex: 1; border: 1.5px solid #c9d4e0; border-radius: 3mm; padding: 5mm; text-align: center; }
+  .offre.mise { border-color: #2e7d4f; background: #f1f8f3; }
+  .offre .nom { font-weight: 600; }
+  .offre .montant { font-size: 24pt; font-weight: 700; color: #1b3a5c; margin: 1mm 0; }
+  .offre .detail { font-size: 9pt; color: #555; }
+  .compris { margin: 5mm 0 0; font-size: 9.5pt; color: #444; }
+  .bas { position: absolute; bottom: 0; left: 0; right: 0; background: #eef3f8; padding: 6mm 18mm; font-size: 9pt; color: #444; }
+</style>
+</head>
+<body>
+
+<div class="haut">
+  <h1>BipClasse</h1>
+  <p class="accroche">L'appel se fait tout seul, même sans Wi-Fi.</p>
+</div>
+
+<div class="contenu">
+  <p class="intro">Les étudiants passent leur carte étudiante devant le boîtier en entrant en cours. Le professeur n'a plus de feuille à faire signer ni d'appel à faire, et la scolarité retrouve les présences, les retards et les absences dans une interface web.</p>
+
+  <div class="grille">
+    <div class="bloc"><h2>Ça marche sans réseau</h2><p>Chaque bip est enregistré dans le boîtier avant d'être envoyé. Pas de Wi-Fi dans la salle, coupure de courant ? Rien n'est perdu, tout part dès que le réseau revient.</p></div>
+    <div class="bloc"><h2>Rapide</h2><p>Un bip prend moins d'une seconde. Une LED verte et un son confirment que c'est bon, l'étudiant suivant peut passer tout de suite.</p></div>
+    <div class="bloc"><h2>Relié à l'emploi du temps</h2><p>Les cours sont importés depuis ADE. Chaque bip est rattaché au bon cours : présent, en retard ou absent, c'est calculé automatiquement.</p></div>
+    <div class="bloc"><h2>Simple à gérer</h2><p>Import de la liste des étudiants depuis Excel, carte associée en la passant sur un lecteur, recherche et filtres sur tous les pointages, exports Excel et ScoDoc.</p></div>
+    <div class="bloc"><h2>Plusieurs salles en même temps</h2><p>Chaque professeur a son boîtier. Ils fonctionnent tous en parallèle et remontent dans la même base.</p></div>
+    <div class="bloc"><h2>Petit et transportable</h2><p>Un Raspberry Pi, un lecteur NFC et une horloge qui garde l'heure même éteint, dans un boîtier qui tient dans la main.</p></div>
+  </div>
+
+  <div class="etapes">
+    <div class="etape"><b>1</b>On branche le boîtier, il démarre tout seul.</div>
+    <div class="etape"><b>2</b>Les étudiants passent leur carte en arrivant.</div>
+    <div class="etape"><b>3</b>Le professeur voit l'émargement en direct.</div>
+    <div class="etape"><b>4</b>La scolarité exporte les absences.</div>
+  </div>
+
+  <h2 class="titre">Tarifs</h2>
+  <div class="prix">
+    <div class="offre"><div class="nom">1 boîtier</div><div class="montant">169 €</div><div class="detail">pour essayer dans une salle</div></div>
+    <div class="offre mise"><div class="nom">Pack 5 boîtiers</div><div class="montant">749 €</div><div class="detail">soit 149,80 € le boîtier</div></div>
+    <div class="offre"><div class="nom">Pack 10 boîtiers</div><div class="montant">1 390 €</div><div class="detail">soit 139 € le boîtier</div></div>
+  </div>
+  <p class="compris">Prix TTC. Compris dans chaque offre : boîtiers montés et testés, installation du logiciel sur un serveur de l'établissement, mise en service et mises à jour pendant un an. Les cartes étudiantes existantes sont utilisées, aucun badge à acheter.</p>
+</div>
+
+<div class="bas">BipClasse, prototype réalisé dans le cadre de la SAÉ 5.B.01 (BUT Informatique). Valentin Verstaevel et Simon Leclercq-Speter.</div>
+
+</body>
+</html>
