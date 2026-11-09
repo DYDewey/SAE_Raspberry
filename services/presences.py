@@ -382,6 +382,29 @@ def taux(present, retard, total):
     return round(100 * (present + retard) / total) if total else None
 
 
+# Un étudiant est « à risque » sous ce taux, absences justifiées non comptées
+SEUIL_RISQUE = 80
+
+
+def taux_risque(present, retard, absent_justifie, total):
+    """Taux utilisé pour l'alerte « à risque » : une absence justifiée ne pénalise pas."""
+    return taux(present + absent_justifie, retard, total)
+
+
+def justificatifs_par_etudiant(db: Session, ids_etudiants) -> dict:
+    """{id étudiant: [(début, fin), ...]} en une seule requête."""
+    periodes = defaultdict(list)
+    if ids_etudiants:
+        for j in db.query(models.JustificatifDB).filter(models.JustificatifDB.id_etudiant.in_(ids_etudiants)):
+            periodes[j.id_etudiant].append((j.debut, j.fin))
+    return periodes
+
+
+def est_justifiee(statut: str, bloc, periodes) -> bool:
+    """Absence dont le jour du cours est couvert par un justificatif (un retard ne l'est jamais)."""
+    return statut == ABSENT and any(d <= bloc.debut.date() <= f for d, f in periodes)
+
+
 # ==========================================
 # Suivi des absences
 # ==========================================
@@ -431,6 +454,7 @@ def historique_etudiant(db: Session, etudiant, debut: datetime, fin: datetime):
     uid = etudiant.carte.nfc_uid if etudiant.carte else None
     bips = _bips_par_seance(db, [uid] if uid else [], [i for b in blocs for i in b.ids])
     corrections = corrections_manuelles(db, [i for b in blocs for i in b.ids])
+    periodes = justificatifs_par_etudiant(db, [etudiant.id])[etudiant.id]
 
     maintenant = maintenant_paris()
     lignes = []
@@ -439,9 +463,11 @@ def historique_etudiant(db: Session, etudiant, debut: datetime, fin: datetime):
         manuel = statut_manuel(corrections, etudiant.id, b)
         if not manuel and pas_encore_compte(b, heures, maintenant):
             continue
+        statut = manuel or statut_depuis(heures[0] if heures else None, b.debut)
         lignes.append({
             "bloc": b,
-            "statut": manuel or statut_depuis(heures[0] if heures else None, b.debut),
+            "statut": statut,
+            "justifiee": est_justifiee(statut, b, periodes),
             "manuel": manuel is not None,
             "arrivee": heures[0] if heures else None,
             "sortie": heure_sortie(heures),
@@ -486,8 +512,11 @@ def statuts_etudiants(db: Session, etudiants, debut: datetime, fin: datetime):
 def bilan_etudiants(db: Session, etudiants, debut: datetime, fin: datetime):
     """Nombre de présences / retards / absences de chaque étudiant sur une période."""
     comptes = {e.id: {PRESENT: 0, RETARD: 0, ABSENT: 0} for e in etudiants}
-    for e, _, statut, _, _ in statuts_etudiants(db, etudiants, debut, fin):
+    justifiees = defaultdict(int)
+    periodes = justificatifs_par_etudiant(db, [e.id for e in etudiants])
+    for e, b, statut, _, _ in statuts_etudiants(db, etudiants, debut, fin):
         comptes[e.id][statut] += 1
+        justifiees[e.id] += est_justifiee(statut, b, periodes[e.id])
     bilan = []
     for e in etudiants:
         compte = comptes[e.id]
@@ -498,9 +527,13 @@ def bilan_etudiants(db: Session, etudiants, debut: datetime, fin: datetime):
             "present": compte[PRESENT],
             "retard": compte[RETARD],
             "absent": compte[ABSENT],
+            "absent_justifie": justifiees[e.id],
             "taux": taux(compte[PRESENT], compte[RETARD], total),
             "taux_absence": pourcentage(compte[ABSENT], total),
+            "taux_risque": taux_risque(compte[PRESENT], compte[RETARD], justifiees[e.id], total),
         })
+    for b in bilan:
+        b["a_risque"] = b["taux_risque"] is not None and b["taux_risque"] < SEUIL_RISQUE
     return bilan
 
 
@@ -517,17 +550,17 @@ def td_de(noms_groupes) -> str:
     return td or (td_du_tp(tp) if tp else promo) or "Sans groupe"
 
 
-def bilan_par_classe(bilan, seuil_risque=80):
+def bilan_par_classe(bilan):
     """Totaux par TD ; si tous les étudiants sont dans le même TD, par groupe le plus précis
     (TP ou demi-groupe). Retourne une liste triée par nom de classe."""
     def regrouper(cle_de):
         classes = defaultdict(lambda: {"etudiants": 0, "cours": 0, "present": 0, "retard": 0,
-                                       "absent": 0, "a_risque": 0})
+                                       "absent": 0, "absent_justifie": 0, "a_risque": 0})
         for b in bilan:
             c = classes[cle_de([g.nom_groupe for g in b["etudiant"].groupes])]
             c["etudiants"] += 1
-            c["a_risque"] += b["taux"] is not None and b["taux"] < seuil_risque
-            for k in ("cours", "present", "retard", "absent"):
+            c["a_risque"] += b["a_risque"]
+            for k in ("cours", "present", "retard", "absent", "absent_justifie"):
                 c[k] += b[k]
         return classes
 
@@ -546,7 +579,9 @@ def bilan_par_classe(bilan, seuil_risque=80):
 def absences_detaillees(db: Session, etudiants, debut: datetime, fin: datetime):
     """Une ligne par absence ou retard (cours, horaires, étudiant), triée par date puis nom :
     de quoi reporter les absences dans ScoDoc sans feuille de présence."""
+    periodes = justificatifs_par_etudiant(db, [e.id for e in etudiants])
     lignes = [{"etudiant": e, "bloc": b, "statut": statut, "manuel": manuel,
+               "justifiee": est_justifiee(statut, b, periodes[e.id]),
                "arrivee": heures[0] if heures and statut == RETARD else None}
               for e, b, statut, manuel, heures in statuts_etudiants(db, etudiants, debut, fin)
               if statut != PRESENT]
