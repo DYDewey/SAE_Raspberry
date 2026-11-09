@@ -197,6 +197,10 @@ class LecteurNFC:
 
     def __init__(self):
         from mfrc522 import MFRC522
+        import RPi.GPIO as GPIO
+        # PIN_RST_NFC est un numéro BCM : sans setmode, la bibliothèque passe en BOARD
+        # (si le lecteur est créé avant les LED) et refuse la broche.
+        GPIO.setmode(GPIO.BCM)
         # pin_rst explicite : en mode BCM la bibliothèque prendrait GPIO 15 par défaut
         self.r = MFRC522(pin_rst=config.PIN_RST_NFC)
         if config.GAIN_ANTENNE is not None:
