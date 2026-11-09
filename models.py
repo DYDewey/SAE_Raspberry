@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, String, Integer, DateTime, ForeignKey, Table, inspect, text
+from sqlalchemy import Boolean, Column, Date, String, Integer, DateTime, ForeignKey, Table, inspect, text
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -98,6 +98,19 @@ class PresenceManuelleDB(Base):
     id_etudiant = Column(Integer, ForeignKey("etudiants.id", ondelete="CASCADE"), primary_key=True)
     statut = Column(String(16), nullable=False)                # Présent / En retard / Absent
     modifie_le = Column(DateTime, nullable=True)
+
+
+class JustificatifDB(Base):
+    """Justificatif d'absence (certificat médical...) saisi par la secrétaire : toutes les
+    absences de l'étudiant dont le cours tombe entre `debut` et `fin` (jours inclus) sont justifiées."""
+    __tablename__ = "justificatifs"
+    id = Column(Integer, primary_key=True)
+    id_etudiant = Column(Integer, ForeignKey("etudiants.id", ondelete="CASCADE"), nullable=False, index=True)
+    debut = Column(Date, nullable=False)
+    fin = Column(Date, nullable=False)
+    motif = Column(String(255), nullable=False, default="")
+    cree_le = Column(DateTime, nullable=True)
+
 
 class ScodocSemestreDB(Base):
     """Semestre ScoDoc d'une promo, relevé dans une feuille d'absences ScoDoc
