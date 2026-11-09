@@ -125,12 +125,18 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <p class="small text-muted">Fichier Excel (.xlsx) avec les colonnes :</p>
+                <p class="small text-muted mb-1">Fichier Excel (.xlsx), par exemple la liste de la scolarité :</p>
+                <table class="table table-sm table-bordered small mb-2">
+                    <thead><tr><th>NOM</th><th>PRENOM</th><th>PARCOURS</th><th>ANNEE</th><th>TD</th><th>TP</th></tr></thead>
+                    <tbody><tr><td>DUPONT</td><td>Thomas</td><td></td><td>BUT 1</td><td>TD1</td><td>TPA</td></tr>
+                    <tr><td>MARTIN</td><td>Léa</td><td>B</td><td>BUT 3 APP</td><td></td><td></td></tr></tbody>
+                </table>
+                <p class="small text-muted mb-1">ou un fichier avec les colonnes :</p>
                 <table class="table table-sm table-bordered small mb-3">
-                    <thead><tr><th>numero</th><th>nom</th><th>prenom</th><th>groupe <span class="fw-normal">(facultatif)</span></th></tr></thead>
+                    <thead><tr><th>numero</th><th>nom</th><th>prenom</th><th>groupe</th></tr></thead>
                     <tbody><tr><td>22301234</td><td>Dupont</td><td>Thomas</td><td>BUT3, BUT3-TD1</td></tr></tbody>
                 </table>
-                <p class="small text-muted">Les étudiants déjà présents (même numéro) ne sont pas dupliqués : leurs nouveaux groupes sont ajoutés.</p>
+                <p class="small text-muted">Seuls nom et prénom sont obligatoires. Un étudiant déjà présent (même numéro, ou même nom et prénom) n'est pas dupliqué : ses groupes sont mis à jour. Sans numéro, le site donne un numéro provisoire (PROV-0001…), remplacé par le vrai dès qu'un fichier le contient.</p>
                 <input type="file" name="fichier" class="form-control" accept=".xlsx,.xls" required>
             </div>
             <div class="modal-footer">
