@@ -47,11 +47,12 @@ def excel_absences(lignes, entete: list):
         "Nom": l["etudiant"].nom,
         "Prénom": l["etudiant"].prenom,
         "Statut": l["statut"],
+        "Justifiée": ("Oui" if l.get("justifiee") else "Non") if l["statut"] == "Absent" else "",
         "Arrivée": l["arrivee"].strftime("%H:%M") if l["arrivee"] else "",
         "Retard (min)": int((l["arrivee"] - l["bloc"].debut).total_seconds() // 60) if l["arrivee"] else "",
         "Saisie": "manuelle" if l["manuel"] else "badge",
     } for l in lignes], columns=["Date", "Jour", "Début", "Fin", "Durée (h)", "Code cours", "Cours", "Groupe",
-                                 "Salle", "Professeur", "N° étudiant", "Nom", "Prénom", "Statut", "Arrivée",
+                                 "Salle", "Professeur", "N° étudiant", "Nom", "Prénom", "Statut", "Justifiée", "Arrivée",
                                  "Retard (min)", "Saisie"])
     sortie = excel_avec_entete(df, "Absences", entete)
 
