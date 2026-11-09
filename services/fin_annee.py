@@ -31,6 +31,8 @@ def effectifs_promos(db: Session) -> dict:
 
 def _oublier_seances(db: Session, etudiant):
     db.query(models.PresenceManuelleDB).filter_by(id_etudiant=etudiant.id).delete()
+    # Le motif d'un justificatif peut être médical : on ne le garde pas
+    db.query(models.JustificatifDB).filter_by(id_etudiant=etudiant.id).delete()
 
 
 def anonymiser(db: Session, etudiants) -> int:
