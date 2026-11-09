@@ -1,0 +1,38 @@
+# Configuration et secrets
+.env
+.env.*
+!.env.example
+.secret_key
+*.pem
+*.key
+
+# Python
+venv/
+.venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+*.so
+.pytest_cache/
+
+# Bases de données et journaux
+*.db
+*.db-wal
+*.db-shm
+*.sqlite3
+*.dump
+*.log
+
+# Données personnelles : vrais étudiants et feuilles d'absences
+etudiants_*.xlsx
+!etudiants_fictifs.xlsx
+!etudiants_test.xlsx
+feuille_signal_abs*.xlsx
+
+# Éditeurs et système
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
