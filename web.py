@@ -33,6 +33,7 @@ templates.env.filters["date_courte"] = _date_courte
 templates.env.filters["date_heure"] = _date_heure
 templates.env.filters["jour_fr"] = jour_fr
 templates.env.globals["TOLERANCE_RETARD_MIN"] = config.TOLERANCE_RETARD_MIN
+templates.env.globals["SEUIL_RISQUE"] = config.SEUIL_RISQUE
 
 
 # --- Listes déroulantes de classes, regroupées par promo ---

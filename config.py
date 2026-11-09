@@ -18,6 +18,8 @@ AVANCE_POINTAGE_MIN = int(os.getenv("AVANCE_POINTAGE_MIN", "15"))
 MOTIF_SAE = os.getenv("MOTIF_SAE", r"\bSA[EÉ]")
 # Un boîtier est considéré "en ligne" s'il a synchronisé il y a moins de X minutes
 BOITIER_EN_LIGNE_MIN = int(os.getenv("BOITIER_EN_LIGNE_MIN", "10"))
+# Un étudiant est signalé « à risque » sous ce taux de présence (%), absences justifiées non comptées
+SEUIL_RISQUE = int(os.getenv("SEUIL_RISQUE", "80"))
 
 # --- Emploi du temps ---
 ICAL_URL = os.getenv("ICAL_URL", "").strip()

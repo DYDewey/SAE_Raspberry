@@ -70,7 +70,7 @@
     </div></div></div>
     <div class="col-6 col-lg-3"><div class="card h-100"><div class="card-body tuile">
         <div class="stat-icone {{ 'bg-danger-subtle text-danger' if total.a_risque else 'bg-success-subtle text-success' }}"><i class="bi bi-{{ 'exclamation-triangle' if total.a_risque else 'check2-circle' }}"></i></div>
-        <div><div class="stat-valeur">{{ total.a_risque }}<span class="fs-6 text-muted fw-normal"> / {{ bilan | length }}</span></div><div class="stat-libelle">étudiant{{ "s" if total.a_risque > 1 }} sous 80 % de présence</div><div class="tuile-detail">absences justifiées non comptées</div></div>
+        <div><div class="stat-valeur">{{ total.a_risque }}<span class="fs-6 text-muted fw-normal"> / {{ bilan | length }}</span></div><div class="stat-libelle">étudiant{{ "s" if total.a_risque > 1 }} sous {{ SEUIL_RISQUE }} % de présence</div><div class="tuile-detail">absences justifiées non comptées</div></div>
     </div></div></div>
 </div>
 
@@ -95,7 +95,7 @@
                 <div class="d-flex justify-content-between small mt-2">
                     {% if c.taux_absence is none %}<span class="text-muted"><i class="bi bi-slash-circle me-1"></i>Aucun appel</span>
                     {% else %}<span class="text-danger"><i class="bi bi-x-circle me-1"></i>{{ c.taux_absence }} % d'absence</span>{% endif %}
-                    {% if c.a_risque %}<span class="text-danger-emphasis fw-semibold" title="Étudiants sous 80 % de présence (absences justifiées non comptées)"><i class="bi bi-exclamation-triangle me-1"></i>{{ c.a_risque }}</span>{% endif %}
+                    {% if c.a_risque %}<span class="text-danger-emphasis fw-semibold" title="Étudiants sous {{ SEUIL_RISQUE }} % de présence (absences justifiées non comptées)"><i class="bi bi-exclamation-triangle me-1"></i>{{ c.a_risque }}</span>{% endif %}
                 </div>
             </div>
         </a>

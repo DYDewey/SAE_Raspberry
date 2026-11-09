@@ -15,6 +15,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 import models
+import config
 from config import AVANCE_POINTAGE_MIN, MOTIF_SAE, TOLERANCE_RETARD_MIN
 from services.groupes import etudiant_concerne, groupe_affiche, groupes_effectifs, sont_lies, td_du_tp
 from services.temps import maintenant_paris
@@ -382,8 +383,7 @@ def taux(present, retard, total):
     return round(100 * (present + retard) / total) if total else None
 
 
-# Un étudiant est « à risque » sous ce taux, absences justifiées non comptées
-SEUIL_RISQUE = 80
+SEUIL_RISQUE = config.SEUIL_RISQUE   # « à risque » sous ce taux (absences justifiées non comptées)
 
 
 def taux_risque(present, retard, absent_justifie, total):
