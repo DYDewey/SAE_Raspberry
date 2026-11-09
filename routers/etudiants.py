@@ -19,7 +19,7 @@ from services.fin_annee import PROMOS
 from services.export import XLSX, excel_absences, excel_avec_entete
 from services.groupes import cle as cle_groupe
 from services.presences import (absences_detaillees, bilan_etudiants, bilan_par_classe, etudiants_par_groupe,
-                                historique_etudiant, pourcentage, taux)
+                                historique_etudiant, pourcentage, SEUIL_RISQUE, taux, taux_risque)
 from services.temps import debut_annee_universitaire, lire_date, maintenant_paris
 from web import admin_requis, flash, groupes_par_promo, render
 
@@ -230,11 +230,47 @@ def fiche_etudiant(etudiant_id: int, request: Request, du: str = None, au: str =
     debut, fin = _periode(du, au)
     historique = historique_etudiant(db, etudiant, debut, fin)
     compte = {s: sum(1 for h in historique if h["statut"] == s) for s in ("Présent", "En retard", "Absent")}
+    justifiees = sum(h["justifiee"] for h in historique)
+    justificatifs = (db.query(models.JustificatifDB).filter_by(id_etudiant=etudiant.id)
+                     .order_by(models.JustificatifDB.debut.desc()).all())
     return render(request, "etudiants/fiche.html", actif="etudiants", etudiant=etudiant,
-                  historique=historique, compte=compte,
+                  historique=historique, compte=compte, justifiees=justifiees, justificatifs=justificatifs,
                   taux=taux(compte["Présent"], compte["En retard"], len(historique)),
+                  taux_risque=taux_risque(compte["Présent"], compte["En retard"], justifiees, len(historique)),
+                  seuil_risque=SEUIL_RISQUE,
                   taux_absence=pourcentage(compte["Absent"], len(historique)),
                   du=debut.strftime("%Y-%m-%d"), au=fin.strftime("%Y-%m-%d"))
+
+
+@router.post("/etudiants/{etudiant_id}/justificatifs")
+def ajouter_justificatif(etudiant_id: int, request: Request, debut: str = Form(...), fin: str = Form(""),
+                         motif: str = Form(""), db: Session = Depends(get_db)):
+    """Justifie toutes les absences de l'étudiant entre deux dates (incluses)."""
+    retour = RedirectResponse(url=f"/admin/etudiants/{etudiant_id}", status_code=303)
+    jour_debut = lire_date(debut)
+    jour_fin = lire_date(fin, jour_debut)          # fin vide = un seul jour
+    if not db.get(models.EtudiantDB, etudiant_id) or not jour_debut:
+        flash(request, "Date de début manquante ou invalide.", "danger")
+        return retour
+    if jour_fin < jour_debut:
+        flash(request, "La date de fin est avant la date de début.", "danger")
+        return retour
+    db.add(models.JustificatifDB(id_etudiant=etudiant_id, debut=jour_debut.date(), fin=jour_fin.date(),
+                                 motif=motif.strip()[:255], cree_le=maintenant_paris()))
+    db.commit()
+    flash(request, f"Justificatif ajouté du {jour_debut:%d/%m/%Y} au {jour_fin:%d/%m/%Y}.")
+    return retour
+
+
+@router.post("/etudiants/{etudiant_id}/justificatifs/{justificatif_id}/supprimer")
+def supprimer_justificatif(etudiant_id: int, justificatif_id: int, request: Request,
+                           db: Session = Depends(get_db)):
+    j = db.get(models.JustificatifDB, justificatif_id)
+    if j and j.id_etudiant == etudiant_id:
+        db.delete(j)
+        db.commit()
+        flash(request, "Justificatif supprimé.")
+    return RedirectResponse(url=f"/admin/etudiants/{etudiant_id}", status_code=303)
 
 
 @router.get("/etudiants/{etudiant_id}/export")
@@ -252,13 +288,15 @@ def export_fiche(etudiant_id: int, du: str = None, au: str = None, db: Session =
         "Salle": h["bloc"].nom_salle,
         "Arrivée": h["arrivee"].strftime("%H:%M") if h["arrivee"] else "",
         "Statut": h["statut"],
-    } for h in historique], columns=["Date", "Horaire", "Cours", "Groupe", "Salle", "Arrivée", "Statut"])
+        "Justifiée": "Oui" if h["justifiee"] else "",
+    } for h in historique], columns=["Date", "Horaire", "Cours", "Groupe", "Salle", "Arrivée", "Statut", "Justifiée"])
+    justifiees = sum(h["justifiee"] for h in historique)
     nb = {s: sum(1 for h in historique if h["statut"] == s) for s in ("Présent", "En retard", "Absent")}
     entete = [
         f"SUIVI D'ASSIDUITÉ - {etudiant.nom.upper()} {etudiant.prenom}",
         f"N° étudiant : {etudiant.numero_etudiant} | Groupes : {', '.join(g.nom_groupe for g in etudiant.groupes)}",
         f"Période : du {debut:%d/%m/%Y} au {fin:%d/%m/%Y}",
-        f"Présences : {nb['Présent']} | Retards : {nb['En retard']} | Absences : {nb['Absent']}",
+        f"Présences : {nb['Présent']} | Retards : {nb['En retard']} | Absences : {nb['Absent']} (dont {justifiees} justifiée(s))",
     ]
     nom = f"assiduite_{etudiant.numero_etudiant}_{etudiant.nom}.xlsx"
     return StreamingResponse(excel_avec_entete(df, "Assiduité", entete), media_type=XLSX,
@@ -285,10 +323,10 @@ def suivi_absences(request: Request, groupe: int = None, du: str = None, au: str
     if groupe is None:
         groupe = request.session.get("edt_groupe")
     bilan, debut, fin = _bilan(db, groupe, du, au)
-    total = {k: sum(b[k] for b in bilan) for k in ("cours", "present", "retard", "absent")}
+    total = {k: sum(b[k] for b in bilan) for k in ("cours", "present", "retard", "absent", "absent_justifie")}
     total["taux_absence"] = pourcentage(total["absent"], total["cours"])
     total["taux_retard"] = pourcentage(total["retard"], total["cours"])
-    total["a_risque"] = sum(1 for b in bilan if b["taux"] is not None and b["taux"] < 80)
+    total["a_risque"] = sum(b["a_risque"] for b in bilan)
     tous_groupes = _groupes(db)
     # Clic sur une carte de classe -> filtre ; 'BUT3-TD2' retrouve aussi le groupe 'BUT3-TD2-APP'
     ids_groupes = {cle_groupe(g.nom_groupe): g.id for g in reversed(tous_groupes)}
@@ -316,7 +354,7 @@ def export_absences_detail(groupe: int = None, du: str = None, au: str = None, d
         "ABSENCES ET RETARDS - IUT",
         f"Classe : {nom_groupe}",
         f"Période : du {debut:%d/%m/%Y} au {fin:%d/%m/%Y}",
-        f"{nb_absents} absence(s), {len(lignes) - nb_absents} retard(s)",
+        f"{nb_absents} absence(s) dont {sum(l['justifiee'] for l in lignes)} justifiée(s), {len(lignes) - nb_absents} retard(s)",
     ]
     return StreamingResponse(excel_absences(lignes, entete), media_type=XLSX, headers={
         "Content-Disposition": f"attachment; filename=absences_detail_{nom_groupe}_{debut:%Y%m%d}_{fin:%Y%m%d}.xlsx"})
@@ -390,9 +428,10 @@ def export_absences(groupe: int = None, du: str = None, au: str = None, db: Sess
         "Présences": b["present"],
         "Retards": b["retard"],
         "Absences": b["absent"],
+        "Absences justifiées": b["absent_justifie"],
         "Taux de présence (%)": b["taux"] if b["taux"] is not None else "",
     } for b in bilan], columns=["N° Étudiant", "Nom", "Prénom", "Cours", "Présences", "Retards",
-                                "Absences", "Taux de présence (%)"])
+                                "Absences", "Absences justifiées", "Taux de présence (%)"])
     nom_groupe = db.get(models.GroupeDB, groupe).nom_groupe if groupe and db.get(models.GroupeDB, groupe) else "tous"
     entete = [
         "BILAN DES ABSENCES - IUT",
