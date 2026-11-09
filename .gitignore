@@ -36,3 +36,9 @@ feuille_signal_abs*.xlsx
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Sauvegardes de la base (données personnelles)
+backup_*.sql
+
+# Base de démo des tutoriels (outils/demo_tutos.py)
+demo_tutos.db*
