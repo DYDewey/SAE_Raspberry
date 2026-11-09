@@ -7,6 +7,8 @@ Serveur et interface d'administration du système de pointage des étudiants : l
 * [Architecture et choix techniques](docs/architecture.md)
 * [Installation et utilisation](docs/installation.md)
 * [Résultats des tests](docs/tests.md)
+* [Analyse des performances (PC et Raspberry Pi)](docs/performances.md)
+* **Tutoriels** (aussi dans le site : menu <kbd>?</kbd> Aide) : [enseignant](static/aide/tuto_enseignant.pdf) · [secrétariat](static/aide/tuto_secretariat.pdf) · [administrateur](static/aide/tuto_administrateur.pdf) — [comment les régénérer](docs/tutos/README.md)
 * [Réflexion sur le matériel et devis (PDF)](docs/materiel_devis.pdf)
 * [Plaquette de présentation (PDF)](docs/promotion.pdf)
 

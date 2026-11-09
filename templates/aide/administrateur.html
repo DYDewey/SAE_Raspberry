@@ -1,0 +1,172 @@
+{% extends "aide/_tuto.html" %}
+{% from "aide/_macros.html" import capture, etape, encadre, bouton with context %}
+{% set sections = [
+    ("vue", "Vue d'ensemble"),
+    ("rentree", "Checklist de rentrée"),
+    ("profs", "Professeurs et comptes"),
+    ("boitiers", "Déclarer un boîtier"),
+    ("installer", "Installer un boîtier Raspberry Pi"),
+    ("salles", "Salles, groupes et règles"),
+    ("fin", "Fin d'année et RGPD"),
+    ("sauvegarde", "Sauvegarder la base"),
+    ("pannes", "Dépannage"),
+] %}
+{% block tuto %}
+
+<section id="vue">
+    <h2><span class="num">1</span>Vue d'ensemble</h2>
+    <p>Le système a deux parties :</p>
+    <ul>
+        <li><strong>Les boîtiers</strong> (Raspberry Pi + lecteur NFC) : un par professeur, plus un <strong>boîtier d'accueil</strong> au secrétariat pour associer les cartes.
+            Chaque badge est d'abord écrit sur la carte SD du boîtier, puis envoyé au serveur toutes les 10 secondes. Sans réseau, le boîtier garde les badges et les envoie plus tard.</li>
+        <li><strong>Le serveur</strong> (ce site + une base PostgreSQL dans Docker) : il reçoit les badges, importe l'emploi du temps d'ADE et calcule les présences.</li>
+    </ul>
+    <p class="mb-0">Deux sortes de comptes : le compte <strong>administrateur</strong> (défini dans le fichier <code>.env</code> du serveur, accès à tout) et un compte par
+       <strong>professeur</strong> (accès à ses cours uniquement).</p>
+</section>
+
+<section id="rentree">
+    <h2><span class="num">2</span>Checklist de rentrée</h2>
+    <ol>
+        <li><strong>Fin d'année</strong> : faire partir les BUT3 et passer les promos à l'année suivante (section 7).</li>
+        <li><strong>Étudiants</strong> : importer la liste des nouveaux BUT1 (tutoriel secrétariat).</li>
+        <li><strong>Emploi du temps</strong> : {{ bouton("Synchroniser l'EDT", "arrow-repeat") }} dans la page Emploi du temps.</li>
+        <li><strong>Professeurs</strong> : créer les comptes des nouveaux profs et leur attribuer un boîtier (sections 3 et 4).</li>
+        <li><strong>Cartes</strong> : faire associer les cartes des nouveaux étudiants au secrétariat, sur le boîtier d'accueil.</li>
+    </ol>
+</section>
+
+<section id="profs">
+    <h2><span class="num">3</span>Professeurs et comptes</h2>
+    <p>Les professeurs sont créés automatiquement par l'import de l'emploi du temps. Page <strong>Professeurs</strong> :</p>
+    {{ capture("a-professeurs", "La page Professeurs : cours importés, boîtier attitré et compte de chaque professeur.") }}
+    {% call etape(1, "Créer le compte d'un professeur") %}
+        <p>Dans la colonne <strong>Actions</strong>, cliquez sur la clé <i class="bi bi-key"></i> (« Créer un compte »), saisissez un <strong>identifiant</strong>
+           et un <strong>mot de passe</strong> (6 caractères minimum), puis {{ bouton("Enregistrer") }}. Transmettez-les au professeur avec le tutoriel enseignant.</p>
+    {% endcall %}
+    {% call etape(2, "Mot de passe oublié") %}
+        <p>Même bouton <i class="bi bi-key"></i> : saisissez un nouveau mot de passe (laisser vide = inchangé). {{ bouton("Retirer l'accès") }} supprime le compte sans toucher à ses cours.</p>
+    {% endcall %}
+    {% call encadre("attention", "Supprimer un professeur") %}
+        <p>La corbeille supprime le professeur <strong>et tous ses cours</strong> de l'emploi du temps. À réserver aux erreurs d'import.</p>
+    {% endcall %}
+</section>
+
+<section id="boitiers">
+    <h2><span class="num">4</span>Déclarer un boîtier</h2>
+    <p>Menu utilisateur (en haut à droite) → <strong>Configuration</strong>, carte <strong>Boîtiers</strong>.</p>
+    {{ capture("a-config-boitiers", "Configuration : la liste des boîtiers avec leur professeur, leur salle de repli et leur token.") }}
+    {% call etape(1, "Ajouter le boîtier") %}
+        <p>Saisissez son identifiant (ex. <code>RPI-001</code>), choisissez le <strong>professeur</strong> attitré et une <strong>salle de repli</strong>, puis ajoutez.</p>
+        <ul>
+            <li>Un badge est relié au cours du <strong>professeur du boîtier</strong> à cette heure-là ; à défaut, au cours qui a lieu dans la <strong>salle de repli</strong>.</li>
+            <li>Case <strong>SAE</strong> : rattache les badges aux séances de SAE du groupe de l'étudiant (boîtier d'un projet, sans prof fixe).</li>
+            <li>Case <strong>Accueil</strong> : c'est le boîtier du secrétariat, le seul proposé par « Scanner la carte ».</li>
+        </ul>
+    {% endcall %}
+    {% call etape(2, "Copier le token") %}
+        <p>Le <strong>token</strong> est le mot de passe du boîtier auprès du serveur. Bouton <i class="bi bi-clipboard"></i> pour le copier, il sera collé dans le fichier
+           <code>.env</code> du boîtier (section 5). <i class="bi bi-arrow-repeat"></i> en génère un nouveau (en cas de boîtier volé) : il faut alors le recopier sur le boîtier.</p>
+    {% endcall %}
+</section>
+
+<section id="installer">
+    <h2><span class="num">5</span>Installer un boîtier Raspberry Pi</h2>
+    {% call etape(1, "Préparer la carte SD") %}
+        <p>Avec <strong>Raspberry Pi Imager</strong>, installez <strong>Raspberry Pi OS Lite</strong> (sans bureau : démarrage plus rapide).
+           Dans les options : nom d'utilisateur <code>pi</code>, Wi-Fi de l'IUT, SSH activé.</p>
+    {% endcall %}
+    {% call etape(2, "Brancher le matériel") %}
+        <p>Numéros GPIO en mode BCM :</p>
+        <table class="table table-sm w-auto">
+            <thead><tr><th>Élément</th><th>GPIO (BCM)</th><th>Broche physique</th></tr></thead>
+            <tbody>
+                <tr><td>Lecteur RC522 : SDA, SCK, MOSI, MISO, RST</td><td>8, 11, 10, 9, 25</td><td>24, 23, 19, 21, 22</td></tr>
+                <tr><td>RC522 : alimentation 3,3 V / GND</td><td>—</td><td>1 / 6</td></tr>
+                <tr><td>Horloge RTC DS3231 : SDA / SCL</td><td>2 / 3</td><td>3 / 5</td></tr>
+                <tr><td>LED bleue / verte / rouge (+ résistance 220 Ω)</td><td>17 / 27 / 22</td><td>11 / 13 / 15</td></tr>
+                <tr><td>Buzzer actif</td><td>14</td><td>8</td></tr>
+            </tbody>
+        </table>
+        {% call encadre("attention", "Alimentation du lecteur") %}
+            <p>Le RC522 se branche en <strong>3,3 V</strong>, jamais en 5 V : il serait détruit.</p>
+        {% endcall %}
+    {% endcall %}
+    {% call etape(3, "Installer le programme") %}
+        <p>Activez SPI et I2C (<code>sudo raspi-config</code> → <em>Interface Options</em>), copiez le dossier <code>boitier</code> dans <code>/home/pi/boitier</code>, puis :</p>
+<pre class="bg-light border rounded p-3 small mb-2"><code>cd ~/boitier
+bash installer.sh
+nano .env      # SERVEUR_URL=http://IP_DU_SERVEUR:8000
+               # DEVICE_ID=RPI-001
+               # API_TOKEN=le token copié à la section 4
+sudo systemctl restart pointage-boitier</code></pre>
+    {% endcall %}
+    {% call etape(4, "Vérifier") %}
+        <p>La <span class="led led-bleue"></span><strong>LED bleue fixe</strong> indique que le boîtier est prêt et que le serveur répond, et le boîtier apparaît
+           <strong>en ligne</strong> sur le tableau de bord. Il redémarre ensuite tout seul à chaque branchement.</p>
+    {% endcall %}
+    {% call encadre("astuce", "Mettre l'adresse IP, pas un nom") %}
+        <p>Dans <code>SERVEUR_URL</code>, utilisez l'<strong>adresse IP</strong> du serveur : avec un nom comme <code>localhost</code>, chaque envoi peut perdre 2 secondes (mesuré).</p>
+    {% endcall %}
+</section>
+
+<section id="salles">
+    <h2><span class="num">6</span>Salles, groupes et règles</h2>
+    {{ capture("a-config-salles", "Configuration : salles, groupes et règles de présence.") }}
+    <ul>
+        <li><strong>Salles</strong> et <strong>groupes</strong> sont créés par l'import de l'emploi du temps et des étudiants. On peut les renommer ou en ajouter.
+            Supprimer une salle ou un groupe supprime aussi <strong>ses cours</strong> (les étudiants sont conservés).</li>
+        <li><strong>Règles de présence</strong> (affichées pour information) : badge accepté {{ AVANCE_POINTAGE_MIN }} min avant le cours,
+            retard après {{ TOLERANCE_RETARD_MIN }} min. Elles se règlent dans le <code>.env</code> du serveur
+            (<code>AVANCE_POINTAGE_MIN</code>, <code>RETARD_TOLERANCE_MIN</code>, <code>ICAL_SEMAINES</code>, <code>SEUIL_RISQUE</code>).</li>
+    </ul>
+</section>
+
+<section id="fin">
+    <h2><span class="num">7</span>Fin d'année et RGPD</h2>
+    {% call etape(1, "Départ des BUT3") %}
+        {{ capture("a-fin-annee", "Configuration : la carte « Fin d'année universitaire ».") }}
+        <p>Carte <strong>Fin d'année universitaire</strong> → <strong>Départ d'une promo</strong> : choisissez BUT3, puis</p>
+        <ul>
+            <li>{{ bouton("Anonymiser", "incognito") }} : noms effacés, carte libérée, pointages gardés pour les statistiques ;</li>
+            <li>{{ bouton("Supprimer", "trash") }} : tout est effacé.</li>
+        </ul>
+    {% endcall %}
+    {% call etape(2, "Passage à l'année suivante") %}
+        <p>Cliquez sur {{ bouton("BUT2 → BUT3") }} <strong>puis</strong> {{ bouton("BUT1 → BUT2") }}, dans cet ordre. Chacun garde son TD/TP (BUT2-TD1 devient BUT3-TD1).</p>
+    {% endcall %}
+    {% call etape(3, "Purge RGPD") %}
+        <p>Carte <strong>Purge RGPD de fin d'année</strong> : choisissez une date puis {{ bouton("Purger", "trash") }}. Les pointages et validations manuelles <strong>antérieurs</strong>
+           à cette date sont supprimés définitivement.
+        {{ capture("a-rgpd", "Configuration : règles de présence et purge RGPD.") }} Les données de présence sont des données personnelles : on ne les garde pas plus longtemps que nécessaire.</p>
+    {% endcall %}
+    {% call encadre("attention", "Actions irréversibles") %}
+        <p>Faites une <strong>sauvegarde de la base</strong> (section 8) avant ces trois opérations.</p>
+    {% endcall %}
+</section>
+
+<section id="sauvegarde">
+    <h2><span class="num">8</span>Sauvegarder la base</h2>
+    <p>Sur le serveur, dans le dossier du projet :</p>
+<pre class="bg-light border rounded p-3 small"><code>docker exec sae_postgres_neuf sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc -f /tmp/sauvegarde.dump'
+docker cp sae_postgres_neuf:/tmp/sauvegarde.dump ./sauvegarde_AAAA-MM-JJ.dump</code></pre>
+    <p>La restauration (qui remplace les données actuelles) est décrite dans le README du projet. Le fichier contient des données personnelles :
+       gardez-le sur un support sûr, jamais dans le dépôt Git.</p>
+</section>
+
+<section id="pannes">
+    <h2><span class="num">9</span>Dépannage</h2>
+    <table class="table table-sm align-middle">
+        <thead><tr><th>Symptôme</th><th>À vérifier</th></tr></thead>
+        <tbody>
+            <tr><td><span class="led led-bleue"></span>LED bleue qui clignote lentement</td><td>le boîtier n'atteint pas le serveur : IP dans <code>SERVEUR_URL</code>, pare-feu du serveur (port 8000), serveur lancé. Les badges sont gardés et partiront au retour du réseau.</td></tr>
+            <tr><td>Boîtier « hors ligne » sur le tableau de bord alors qu'il tourne</td><td>token faux : le recopier depuis Configuration → Boîtiers, puis <code>sudo systemctl restart pointage-boitier</code>.</td></tr>
+            <tr><td>Aucune LED au démarrage</td><td>journal du boîtier : <code>journalctl -u pointage-boitier -f</code></td></tr>
+            <tr><td><span class="led led-rouge"></span>LED rouge qui clignote 3 s en boucle</td><td>le programme plante et redémarre ; après 5 plantages en 5 min, le Pi redémarre. Lire le journal.</td></tr>
+            <tr><td>Mauvaise heure sur les badges</td><td>pile du module RTC : <code>sudo hwclock -r</code></td></tr>
+            <tr><td>Le site ne s'affiche pas</td><td><code>docker compose ps</code> (la base tourne ?) et le terminal du serveur.</td></tr>
+            <tr><td>Bandeau « mot de passe par défaut »</td><td>définir <code>ADMIN_USER</code> et <code>ADMIN_PASSWORD</code> dans le <code>.env</code> du serveur, puis le relancer.</td></tr>
+        </tbody>
+    </table>
+</section>
+{% endblock %}

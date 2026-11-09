@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{# Mise en page commune aux tutoriels. Chaque tuto remplit :
+   - sections : liste (ancre, titre) pour le sommaire
+   - le bloc "tuto" #}
+{% block titre %}{{ titre }}{% endblock %}
+{% block contenu %}
+
+{# Page de garde : visible seulement à l'impression (PDF) #}
+<section class="page-garde seulement-impression">
+    <div class="logo-badge mb-4"><i class="bi bi-broadcast-pin"></i></div>
+    <div class="text-uppercase small fw-semibold text-muted mb-2">Pointage IUT · système de présence par badge NFC</div>
+    <h1 class="display-5 fw-bold mb-3">{{ titre }}</h1>
+    <p class="lead mb-5">Pour : {{ public }}</p>
+    <div class="small text-muted">SAE 5.B.01 · IUT · version du {{ date_du_jour }}</div>
+    <div class="small text-muted mt-1">Ce document est l'impression de la page « Aide » du site : les deux sont toujours identiques.</div>
+</section>
+
+<div class="pas-impression mb-3">
+    <a href="/admin/aide" class="text-decoration-none small"><i class="bi bi-arrow-left me-1"></i>Aide</a>
+</div>
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4 pas-impression">
+    <div class="d-flex align-items-center gap-3">
+        <span class="aide-icone"><i class="bi bi-{{ icone }}"></i></span>
+        <div>
+            <h1 class="titre-page h3 mb-0">{{ titre }}</h1>
+            <div class="sous-titre">Pour : {{ public }}</div>
+        </div>
+    </div>
+    {% if ("tuto_" ~ tuto) in captures %}
+    <a class="btn btn-outline-primary" href="/static/aide/tuto_{{ tuto }}.pdf" download>
+        <i class="bi bi-file-earmark-pdf me-1"></i>Télécharger le PDF
+    </a>
+    {% endif %}
+</div>
+
+<div class="row g-4">
+    <aside class="col-lg-3 pas-impression">
+        <nav class="sommaire card sticky-lg-top">
+            <div class="card-header">Sommaire</div>
+            <ol class="list-unstyled mb-0 p-2">
+                {% for ancre, nom in sections %}
+                <li><a href="#{{ ancre }}">{{ loop.index }}. {{ nom }}</a></li>
+                {% endfor %}
+            </ol>
+        </nav>
+    </aside>
+    <div class="col-lg-9">
+        <div class="sommaire-impression seulement-impression">
+            <h2>Sommaire</h2>
+            <ol>{% for ancre, nom in sections %}<li>{{ nom }}</li>{% endfor %}</ol>
+        </div>
+        <article class="tuto">
+            {% block tuto %}{% endblock %}
+        </article>
+    </div>
+</div>
+{% endblock %}

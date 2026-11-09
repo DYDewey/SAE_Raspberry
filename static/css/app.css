@@ -235,3 +235,65 @@ body { font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif; }
 }
 .scan-onde::after { animation-delay: .9s; }
 @keyframes onde { from { transform: scale(1); opacity: .7; } to { transform: scale(1.9); opacity: 0; } }
+
+/* ==========================================================
+   Aide : tutoriels (templates/aide/) + version imprimée (PDF)
+   ========================================================== */
+.aide-icone {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 52px; height: 52px; border-radius: 14px; font-size: 1.5rem; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--iut), var(--iut-clair)); color: #fff;
+}
+.carte-tuto { transition: transform .15s, box-shadow .15s; }
+.carte-tuto:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(15,34,64,.1); }
+.sommaire { top: 6.5rem; }
+.sommaire a { display: block; padding: .35rem .6rem; border-radius: .5rem; color: #24303f; text-decoration: none; font-size: .92rem; }
+.sommaire a:hover { background: var(--fond); color: var(--iut-clair); }
+
+.tuto { font-size: 1rem; line-height: 1.65; }
+.tuto > section { background: #fff; border: 1px solid var(--bord); border-radius: .75rem; padding: 1.75rem; margin-bottom: 1.5rem; scroll-margin-top: 6.5rem; }
+.tuto h2 { font-size: 1.4rem; font-weight: 700; color: var(--iut); margin-bottom: 1rem; }
+.tuto h2 .num { display: inline-flex; width: 2rem; height: 2rem; border-radius: 50%; background: var(--iut); color: #fff;
+                align-items: center; justify-content: center; font-size: 1rem; margin-right: .6rem; vertical-align: .1rem; }
+.etape { display: flex; gap: 1rem; margin: 1.25rem 0; }
+.etape-numero { flex-shrink: 0; width: 2rem; height: 2rem; border-radius: 50%; border: 2px solid var(--iut-clair);
+                color: var(--iut-clair); font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.etape-corps { flex-grow: 1; min-width: 0; }
+.etape-titre { font-size: 1.05rem; font-weight: 600; margin: .2rem 0 .5rem; }
+.nom-bouton { display: inline-block; padding: .05rem .5rem; border: 1px solid #c9d2df; border-radius: .4rem;
+              background: #f8fafc; font-weight: 600; font-size: .9em; white-space: nowrap; }
+.capture { margin: 1rem 0; }
+.capture img { max-width: 100%; border: 1px solid var(--bord); border-radius: .6rem; box-shadow: 0 4px 16px rgba(15,34,64,.08); }
+.capture figcaption { font-size: .85rem; color: #6b7685; margin-top: .45rem; font-style: italic; }
+.capture-absente { padding: 2rem; border: 2px dashed #c9d2df; border-radius: .6rem; color: #8a94a3; text-align: center; }
+.encadre { border-left: 4px solid; border-radius: .5rem; padding: .9rem 1.1rem; margin: 1rem 0; }
+.encadre > :last-child { margin-bottom: 0; }
+.encadre-titre { font-weight: 700; margin-bottom: .35rem; }
+.encadre-astuce { border-color: #2c7be5; background: #eef5ff; }
+.encadre-attention { border-color: #e0a800; background: #fff8e1; }
+.encadre-panne { border-color: #dc3545; background: #fdf0f1; }
+.tuto table { font-size: .93rem; }
+.led { display: inline-block; width: .85rem; height: .85rem; border-radius: 50%; vertical-align: -.05rem; margin-right: .3rem; box-shadow: 0 0 0 2px rgba(0,0,0,.08); }
+.led-bleue { background: #2c7be5; } .led-verte { background: #198754; } .led-rouge { background: #dc3545; }
+
+.seulement-impression { display: none; }
+
+@media print {
+    @page { size: A4; margin: 14mm 13mm; }
+    body { background: #fff; font-size: 11pt; }
+    .barre-menu, .alert, .toast-container, .pas-impression { display: none !important; }
+    .seulement-impression { display: block; }
+    main { padding: 0 !important; max-width: none !important; }
+    .row > .col-lg-9 { width: 100%; flex: 0 0 100%; max-width: 100%; }
+    .page-garde { height: 250mm; display: flex; flex-direction: column; justify-content: center; page-break-after: always; }
+    .page-garde .logo-badge { background: linear-gradient(90deg, var(--iut), var(--iut-clair)); color: #fff; box-shadow: none; width: 64px; height: 64px; font-size: 2rem; }
+    .sommaire-impression { page-break-after: always; }
+    .sommaire-impression h2 { font-size: 1.4rem; font-weight: 700; color: var(--iut); }
+    .sommaire-impression li { font-size: 1.1rem; margin: .4rem 0; }
+    .tuto > section { border: none; padding: 0; margin: 0 0 1.2rem; page-break-before: always; }
+    .tuto > section:first-child { page-break-before: auto; }
+    .etape, .capture, .encadre, tr { break-inside: avoid; }
+    .capture img { box-shadow: none; max-height: 115mm; }
+    a { color: inherit; text-decoration: none; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

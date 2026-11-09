@@ -48,6 +48,9 @@
                 </li>
                 {% endfor %}
             </ul>
+            <a class="nav-link lien-aide me-lg-3 {% if actif == 'aide' %}active{% endif %}" href="/admin/aide" title="Tutoriels d'utilisation">
+                <i class="bi bi-question-circle"></i><span class="ms-1 d-lg-none">Aide</span>
+            </a>
             <div class="dropdown">
                 <button class="btn btn-utilisateur dropdown-toggle d-flex align-items-center gap-2" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                     <span class="avatar">{{ admin[:1] | upper }}</span>

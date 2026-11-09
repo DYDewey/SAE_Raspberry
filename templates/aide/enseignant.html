@@ -1,0 +1,133 @@
+{% extends "aide/_tuto.html" %}
+{% from "aide/_macros.html" import capture, etape, encadre, bouton with context %}
+{% set sections = [
+    ("principe", "Comment fonctionne l'appel"),
+    ("connexion", "Se connecter"),
+    ("cours", "Retrouver ses cours"),
+    ("emargement", "Suivre l'appel en direct"),
+    ("corriger", "Corriger un statut à la main"),
+    ("export", "Exporter la feuille d'émargement"),
+    ("boitier", "Le boîtier : signaux et bons gestes"),
+    ("faq", "Questions fréquentes"),
+] %}
+{% block tuto %}
+
+<section id="principe">
+    <h2><span class="num">1</span>Comment fonctionne l'appel</h2>
+    <p>Vous n'avez plus d'appel à faire : <strong>chaque étudiant passe sa carte étudiante sur le boîtier</strong> en entrant dans la salle.
+       Le site rattache automatiquement chaque bip à <strong>votre cours</strong> (celui de l'emploi du temps à cette heure-là) et calcule le statut :</p>
+    <table class="table table-sm w-auto">
+        <tbody>
+            <tr><td><span class="badge text-bg-success">Présent</span></td><td>badge avant le début du cours + {{ TOLERANCE_RETARD_MIN }} min</td></tr>
+            <tr><td><span class="badge text-bg-warning">En retard</span></td><td>badge plus tard pendant le cours</td></tr>
+            <tr><td><span class="badge text-bg-danger">Absent</span></td><td>aucun badge</td></tr>
+        </tbody>
+    </table>
+    <p class="mb-0">Le boîtier accepte les badges <strong>dès 15 min avant</strong> le début du cours. Il fonctionne <strong>même sans réseau</strong> :
+       les bips sont gardés et envoyés dès que la connexion revient.</p>
+</section>
+
+<section id="connexion">
+    <h2><span class="num">2</span>Se connecter</h2>
+    {% call etape(1, "Ouvrir le site") %}
+        <p>Dans votre navigateur, ouvrez l'adresse donnée par l'administrateur (par exemple <code>http://pointage.iut.local:8000</code>).</p>
+    {% endcall %}
+    {% call etape(2, "Saisir vos identifiants") %}
+        <p>Entrez l'<strong>identifiant</strong> et le <strong>mot de passe</strong> que l'administrateur vous a créés, puis cliquez sur {{ bouton("Se connecter") }}.</p>
+        {{ capture("e-connexion", "La page de connexion.") }}
+    {% endcall %}
+    {% call encadre("astuce", "Session") %}
+        <p>Vous restez connecté tant qu'une page du site est ouverte. Après un long moment d'inactivité, le site vous redemande votre mot de passe.</p>
+    {% endcall %}
+</section>
+
+<section id="cours">
+    <h2><span class="num">3</span>Retrouver ses cours</h2>
+    <p>Après la connexion, vous arrivez sur <strong>Mes cours</strong> : votre emploi du temps de la semaine, importé depuis ADE.</p>
+    {{ capture("e-mes-cours", "Mes cours : chaque cours affiche le nombre de présents sur le nombre d'inscrits.") }}
+    <ul>
+        <li>Les flèches <i class="bi bi-chevron-left"></i> <i class="bi bi-chevron-right"></i> changent de semaine, {{ bouton("Aujourd'hui") }} revient à la semaine en cours.</li>
+        <li>Sur chaque cours : <strong>présents / inscrits</strong>. Un cours où personne n'a badgé est grisé : il ne compte pas dans les absences (boîtier oublié ou éteint).</li>
+    </ul>
+</section>
+
+<section id="emargement">
+    <h2><span class="num">4</span>Suivre l'appel en direct</h2>
+    {% call etape(1, "Cliquer sur le cours") %}
+        <p>La feuille d'émargement s'ouvre sur le côté. Elle se met à jour toute seule pendant que les étudiants badgent.</p>
+        {{ capture("e-emargement", "La feuille d'émargement : statut, heure d'arrivée et de sortie de chaque étudiant.") }}
+    {% endcall %}
+    {% call etape(2, "Lire la feuille") %}
+        <ul>
+            <li><strong>Arrivée</strong> : heure du premier badge. <strong>Sortie</strong> : heure du dernier badge (si l'étudiant rebadge en partant).</li>
+            <li><i class="bi bi-credit-card-2-front text-muted"></i> barrée : l'étudiant n'a pas encore de carte associée, il ne peut pas badger. Signalez-le au secrétariat.</li>
+            <li>L'icône <i class="bi bi-box-arrow-up-right"></i> ouvre la feuille en pleine page (pratique pour la projeter).</li>
+        </ul>
+    {% endcall %}
+</section>
+
+<section id="corriger">
+    <h2><span class="num">5</span>Corriger un statut à la main</h2>
+    <p>Un étudiant a oublié sa carte, le boîtier était en panne ? Vous pouvez valider sa présence vous-même.</p>
+    {% call etape(1, "Cliquer sur le statut de l'étudiant") %}
+        <p>Un menu <strong>Valider à la main</strong> s'ouvre.</p>
+        {{ capture("e-valider-main", "Le menu « Valider à la main » sur le statut d'un étudiant.") }}
+    {% endcall %}
+    {% call etape(2, "Choisir le bon statut") %}
+        <p>{{ bouton("Présent", "check-circle") }} {{ bouton("En retard", "clock-history") }} ou {{ bouton("Absent", "x-circle") }}.
+           Le statut est marqué d'une petite main <i class="bi bi-hand-index"></i> : on sait qu'il a été validé à la main.</p>
+    {% endcall %}
+    {% call etape(3, "Annuler si besoin") %}
+        <p>{{ bouton("Revenir au badge", "arrow-counterclockwise") }} efface votre correction : le statut redevient celui calculé à partir des badges.</p>
+    {% endcall %}
+</section>
+
+<section id="export">
+    <h2><span class="num">6</span>Exporter la feuille d'émargement</h2>
+    <p>Le bouton {{ bouton("Excel", "file-earmark-excel") }} en haut de la feuille télécharge la liste du cours (étudiant, arrivée, sortie, statut) :
+       à garder comme justificatif ou à transmettre au secrétariat.</p>
+</section>
+
+<section id="boitier">
+    <h2><span class="num">7</span>Le boîtier : signaux et bons gestes</h2>
+    {% call etape(1, "En arrivant : brancher le boîtier") %}
+        <p>Branchez-le sur une prise ou un port USB. Il est prêt en <strong>une vingtaine de secondes</strong>, quand la <span class="led led-bleue"></span><strong>LED bleue</strong> reste allumée.</p>
+    {% endcall %}
+    {% call etape(2, "Les étudiants badgent") %}
+        <p>Chaque étudiant pose sa carte à plat sur le boîtier, environ une seconde. Le boîtier est prêt pour la carte suivante en moins d'une seconde.</p>
+    {% endcall %}
+    <table class="table table-sm align-middle">
+        <thead><tr><th>Signal</th><th>Ce que ça veut dire</th><th>Que faire</th></tr></thead>
+        <tbody>
+            <tr><td><span class="led led-bleue"></span>bleue fixe</td><td>prêt, serveur joignable</td><td>rien</td></tr>
+            <tr><td><span class="led led-verte"></span>verte + 1 bip</td><td>badge enregistré</td><td>rien</td></tr>
+            <tr><td><span class="led led-verte"></span>verte qui clignote 2 fois</td><td>badge déjà pris il y a moins d'1 minute</td><td>rien, il est bien compté</td></tr>
+            <tr><td><span class="led led-rouge"></span>rouge + 2 bips</td><td>carte mal lue, ou carte associée à aucun étudiant</td><td>repasser la carte bien à plat ; si ça recommence, prévenir le secrétariat (le bip est quand même gardé)</td></tr>
+            <tr><td><span class="led led-bleue"></span>bleue qui clignote lentement</td><td>pas de réseau</td><td>continuer normalement : les bips sont gardés et partiront plus tard</td></tr>
+            <tr><td><span class="led led-bleue"></span>bleue qui clignote vite</td><td>envoi des bips au serveur</td><td>rien</td></tr>
+            <tr><td><span class="led led-rouge"></span>rouge qui clignote 3 s</td><td>le programme a redémarré après une erreur</td><td>attendre la LED bleue ; si ça se répète, prévenir l'administrateur</td></tr>
+        </tbody>
+    </table>
+    {% call encadre("attention", "Débrancher le boîtier") %}
+        <p>Vous pouvez le débrancher à la fin du cours sans précaution particulière : chaque badge est enregistré sur le boîtier dès qu'il est lu
+           et n'est effacé qu'une fois reçu par le serveur.</p>
+    {% endcall %}
+</section>
+
+<section id="faq">
+    <h2><span class="num">8</span>Questions fréquentes</h2>
+    {% call encadre("panne", "Un étudiant dit avoir badgé mais il apparaît absent") %}
+        <p>Vérifiez la LED bleue : si elle clignote lentement, le boîtier n'a pas encore pu envoyer les bips (ils arriveront au retour du réseau).
+           Sinon, sa carte n'est peut-être associée à personne : validez-le à la main et prévenez le secrétariat.</p>
+    {% endcall %}
+    {% call encadre("panne", "Mon cours n'apparaît pas ou est à la mauvaise heure") %}
+        <p>L'emploi du temps vient d'ADE. Demandez au secrétariat de cliquer sur « Synchroniser l'EDT ».</p>
+    {% endcall %}
+    {% call encadre("panne", "J'ai oublié mon boîtier") %}
+        <p>Validez les étudiants à la main depuis la feuille d'émargement (section 5). Le cours ne sera pas compté comme « personne n'a badgé ».</p>
+    {% endcall %}
+    {% call encadre("astuce", "Mot de passe oublié") %}
+        <p>Demandez à l'administrateur : il vous en définit un nouveau dans la page Professeurs.</p>
+    {% endcall %}
+</section>
+{% endblock %}

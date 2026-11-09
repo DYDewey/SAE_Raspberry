@@ -21,7 +21,7 @@ from starlette.middleware.sessions import SessionMiddleware
 import config
 import models
 from database import engine
-from routers import api, auth, configuration, edt, etudiants, pointages, professeurs, tableau_de_bord
+from routers import aide, api, auth, configuration, edt, etudiants, pointages, professeurs, tableau_de_bord
 from web import NonConnecte, PasAutorise, flash
 
 # Crée les tables manquantes, puis met à jour les tables qui existaient déjà
@@ -78,3 +78,4 @@ app.include_router(etudiants.router)
 app.include_router(professeurs.router)
 app.include_router(pointages.router)
 app.include_router(configuration.router)
+app.include_router(aide.router)             # tutoriels (menu Aide)

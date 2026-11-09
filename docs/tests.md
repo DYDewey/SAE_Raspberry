@@ -7,7 +7,7 @@ pip install -r requirements-dev.txt
 python -m pytest
 ```
 
-**Résultat au 09/11/2026 : 46 tests, 46 réussis (≈ 9 s).**
+**Résultat au 09/11/2026 : 53 tests, 53 réussis (≈ 24 s).**
 
 ## API de synchronisation — `tests/test_api_sync.py` (10)
 
@@ -93,3 +93,22 @@ python -m pytest
 | Import de la vraie liste de la scolarité (173 étudiants), puis réimport simulé | OK : 173 ajoutés, réimport = 0 ajout, 0 modification |
 
 À compléter avec les essais sur le vrai Raspberry Pi (voir `performances.md`).
+
+## Menu Aide (tutoriels) — `tests/test_aide.py` (5)
+
+| Test | Ce qui est vérifié |
+|---|---|
+| `test_non_connecte_renvoye_vers_login` | l'aide n'est pas accessible sans connexion |
+| `test_admin_voit_les_trois_tutos` | l'administrateur voit et ouvre les 3 tutoriels |
+| `test_prof_ne_voit_que_le_tuto_enseignant` | un prof ne voit que le tuto enseignant ; les autres → 403 |
+| `test_tuto_inconnu` | tuto inexistant → 404 |
+| `test_lien_aide_dans_le_menu` | le lien Aide est dans le menu |
+
+## Feuille d'émargement — `tests/test_emargement_appel.py` (2)
+
+Bug trouvé en faisant les captures des tutos : le bandeau « Pas d'appel » s'affichait sur tous les cours passés.
+
+| Test | Ce qui est vérifié |
+|---|---|
+| `test_pas_de_bandeau_quand_des_etudiants_ont_badge` | cours avec badges : pas de bandeau (page et panneau) |
+| `test_bandeau_quand_personne_n_a_badge` | cours sans aucun badge : le bandeau s'affiche |

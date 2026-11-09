@@ -1,0 +1,36 @@
+{# Briques des tutoriels. Une capture absente affiche un cadre « capture à venir »
+   (les images sont produites par outils/tutos.py dans static/aide/). #}
+
+{% macro capture(nom, legende) -%}
+<figure class="capture">
+    {% if nom in captures %}
+    <img src="/static/aide/{{ nom }}.png?v={{ version('aide/' ~ nom ~ '.png') }}" alt="{{ legende }}">
+    {% else %}
+    <div class="capture-absente"><i class="bi bi-image"></i> Capture « {{ nom }} » à générer (outils/tutos.py)</div>
+    {% endif %}
+    <figcaption>{{ legende }}</figcaption>
+</figure>
+{%- endmacro %}
+
+{% macro etape(numero, titre) -%}
+<div class="etape">
+    <div class="etape-numero">{{ numero }}</div>
+    <div class="etape-corps">
+        <h3 class="etape-titre">{{ titre }}</h3>
+        {{ caller() }}
+    </div>
+</div>
+{%- endmacro %}
+
+{# sorte : astuce (bleu), attention (orange), panne (rouge) #}
+{% macro encadre(sorte, titre) -%}
+{% set icones = {"astuce": "lightbulb", "attention": "exclamation-triangle", "panne": "tools"} %}
+<div class="encadre encadre-{{ sorte }}">
+    <div class="encadre-titre"><i class="bi bi-{{ icones[sorte] }} me-2"></i>{{ titre }}</div>
+    {{ caller() }}
+</div>
+{%- endmacro %}
+
+{% macro bouton(texte, icone="") -%}
+<span class="nom-bouton">{% if icone %}<i class="bi bi-{{ icone }} me-1"></i>{% endif %}{{ texte }}</span>
+{%- endmacro %}
