@@ -23,8 +23,9 @@ Serveur et interface d'administration du système de pointage des étudiants : l
 
 * **Tableau de bord :** cours du jour avec le nombre de présents, taux de présence sur 7 jours, état des boîtiers, derniers pointages.
 * **Emploi du temps en grille semaine :** choix de la classe (les CM de la promo sont inclus), filtres professeur et salle, navigation entre les semaines, présents/inscrits sur chaque cours. Un clic sur un cours ouvre la feuille d'émargement (présent / en retard / absent, heures d'arrivée et de sortie, export Excel).
-* **Étudiants :** import du fichier Excel de la scolarité, multi-groupes, association des cartes NFC (lecteur USB), recherche.
-* **Suivi des absences :** bilan par classe et par période, fiche individuelle avec l'historique, exports Excel.
+* **Étudiants :** import de la liste de la scolarité (NOM, PRENOM, PARCOURS, ANNEE, TD, TP, sans numéro : numéros provisoires remplacés par les vrais au prochain import) ou d'un fichier numero / nom / prenom / groupe, multi-groupes, association des cartes NFC (lecteur USB), recherche.
+* **Suivi des absences :** bilan par classe et par période, fiche individuelle avec l'historique, exports Excel, feuille ScoDoc.
+* **Absences justifiées :** justificatif sur une période (certificat médical…) saisi sur la fiche étudiant ; les absences couvertes sont marquées « Justifiée » dans les stats et les exports.
 * **Configuration :** boîtiers (professeur attitré, token), salles, groupes, purge RGPD de fin d'année.
 * **Connexion administrateur** obligatoire pour toute l'interface.
 
@@ -84,8 +85,9 @@ Les tables manquantes sont créées au démarrage et les tables existantes mises
 | `DB_USER`, `DB_PASSWORD`, `DB_NAME` | Connexion PostgreSQL | — |
 | `DB_HOST`, `DB_PORT` | Adresse de PostgreSQL | `localhost`, `5432` |
 | `ADMIN_USER`, `ADMIN_PASSWORD` | Compte de l'interface d'administration | `admin` / `admin` |
-| `SECRET_KEY` | Clé de signature des sessions (une longue chaîne aléatoire) | générée à chaque démarrage |
+| `SECRET_KEY` | Clé de signature des sessions (une longue chaîne aléatoire) | générée une fois et gardée dans `.secret_key` |
 | `RETARD_TOLERANCE_MIN` | Minutes après le début avant d'être « En retard » | `15` |
+| `SEUIL_RISQUE` | Taux de présence (%) sous lequel un étudiant est « à risque » | `80` |
 | `AVANCE_POINTAGE_MIN` | Minutes avant le début où un bip est déjà accepté | `15` |
 | `ICAL_URL` | Lien iCal ADE de l'emploi du temps | — (obligatoire pour la synchro) |
 | `ICAL_SEMAINES` | Semaines importées à chaque synchro | `4` |
@@ -143,5 +145,6 @@ Le boîtier marque comme synchronisés les pointages dont l'uuid est dans `synce
 * **UID NFC :** hexadécimal majuscule sans séparateur (`10:d6:5d:56` → `10D65D56`), à l'enrôlement comme au pointage.
 * **Rattachement :** un bip est relié au cours du professeur du boîtier qui couvre l'heure du bip (dès 15 min avant le début). À défaut, la salle du boîtier est utilisée.
 * **Statut :** premier bip avant début + 15 min → *Présent*, après → *En retard*, aucun bip → *Absent*. Le dernier bip est l'heure de *Sortie*. Les créneaux qui se suivent (8h-9h30 + 9h30-11h) forment un seul cours.
-* **Bilans d'absences :** seuls les cours terminés sont comptés.
+* **Bilans d'absences :** un étudiant sans badge est compté absent 15 min après le début du cours, et passe en retard s'il badge ensuite.
+* **Absences justifiées :** une absence dont le jour est couvert par un justificatif est justifiée (un retard ne l'est jamais). Le taux de présence ne change pas ; l'alerte « à risque » (sous `SEUIL_RISQUE` = 80 %) ne compte que les absences non justifiées.
 * **Synchro EDT :** les cours sont mis à jour via l'UID iCal (leurs identifiants ne changent pas) et les pointages sont recalculés.

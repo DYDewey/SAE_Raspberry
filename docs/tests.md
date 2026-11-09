@@ -7,7 +7,7 @@ pip install -r requirements-dev.txt
 python -m pytest
 ```
 
-**Résultat au 23/10/2026 : 33 tests, 33 réussis (≈ 6 s).**
+**Résultat au 09/11/2026 : 46 tests, 46 réussis (≈ 9 s).**
 
 ## API de synchronisation — `tests/test_api_sync.py` (10)
 
@@ -61,10 +61,35 @@ python -m pytest
 | `test_plage_horaire_et_combinaison` | plage horaire et filtres combinés |
 | `test_plage_de_dates` | plage de dates (même inversée) |
 
+## Absences justifiées — `tests/test_justificatifs.py` (6) et `tests/test_justificatifs_web.py` (1)
+
+| Test | Ce qui est vérifié |
+|---|---|
+| `test_absence_dans_la_periode_justifiee` | absence le jour du justificatif → justifiée ; taux de présence inchangé, pas « à risque » |
+| `test_absence_hors_periode_non_justifiee` | justificatif qui finit la veille ou commence le lendemain → sans effet |
+| `test_justificatif_d_un_autre_etudiant_sans_effet` | le justificatif ne vaut que pour son étudiant |
+| `test_retard_jamais_justifie` | un retard reste un retard |
+| `test_detail_historique_et_classe` | fiche, liste détaillée et bilan par classe comptent les absences justifiées |
+| `test_fin_annee_efface_les_justificatifs` | l'anonymisation supprime les justificatifs (motif médical, RGPD) |
+| `test_ajout_affichage_export_suppression` | de bout en bout : saisie (fin avant début refusée), pages, 3 exports Excel, suppression |
+
+## Import des étudiants — `tests/test_import_etudiants.py` (6)
+
+| Test | Ce qui est vérifié |
+|---|---|
+| `test_groupes_depuis_colonnes` | ANNEE / PARCOURS / TD / TP → groupes ADE, apprentis compris |
+| `test_liste_scolarite_sans_numero` | liste sans numéro importée, numéros provisoires `PROV-0001`… |
+| `test_reimport_sans_doublon_et_changement_de_groupe` | réimport : pas de doublon, changement de TP pris en compte |
+| `test_vrai_numero_remplace_le_provisoire` | un fichier avec numéros remplace `PROV-…` (accents ignorés) |
+| `test_ancien_format_avec_numero` | l'ancien format numero / nom / prenom / groupe marche toujours |
+| `test_homonyme_avec_vrai_numero_pas_ecrase` | deux homonymes aux numéros différents restent deux étudiants |
+
 ## Tests manuels
 
 | Scénario | Résultat |
 |---|---|
 | Sauvegarde `pg_dump` puis restauration dans une base vide | OK, même nombre de pointages (44) |
+| Justificatif ajouté puis supprimé dans le navigateur (vraie base PostgreSQL) | OK : badges « Justifiée » sur la fiche, « dont 4 justifiées » sur la page Absences |
+| Import de la vraie liste de la scolarité (173 étudiants), puis réimport simulé | OK : 173 ajoutés, réimport = 0 ajout, 0 modification |
 
 À compléter avec les essais sur le vrai Raspberry Pi (voir `performances.md`).
