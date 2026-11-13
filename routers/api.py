@@ -41,6 +41,8 @@ def synchroniser(payload: SyncIn, authorization: str = Header(None), db: Session
     token = (authorization or "").removeprefix("Bearer ").strip()
     if not boitier or not secrets.compare_digest(token, boitier.token):
         # 401 : le boîtier garde ses pointages en local et réessaiera plus tard
+        print(f"Synchro refusée : boîtier {payload.device_id!r} "
+              f"{'inconnu' if not boitier else 'avec un mauvais token'}.")
         raise HTTPException(status_code=401, detail="Boîtier inconnu ou token invalide")
 
     if payload.connexion:
