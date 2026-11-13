@@ -93,7 +93,7 @@ Les tables manquantes sont créées au démarrage et les tables existantes mises
 | `AVANCE_POINTAGE_MIN` | Minutes avant le début où un bip est déjà accepté | `15` |
 | `ICAL_URL` | Lien iCal ADE de l'emploi du temps | — (obligatoire pour la synchro) |
 | `ICAL_SEMAINES` | Semaines importées à chaque synchro | `4` |
-| `BOITIER_EN_LIGNE_MIN` | Délai après lequel un boîtier est affiché hors ligne | `10` |
+| `BOITIER_EN_LIGNE_MIN` | Délai après lequel un boîtier est affiché hors ligne | `1` |
 
 Pour générer une `SECRET_KEY` : `python -c "import secrets; print(secrets.token_hex(32))"`
 
