@@ -1,5 +1,6 @@
 """Étudiants : liste, import Excel, cartes NFC, fiche individuelle et suivi des absences."""
 import io
+import re
 import zipfile
 from datetime import timedelta
 
@@ -37,6 +38,14 @@ def _filtre_groupe(db, requete, groupe: int):
     return requete.filter(models.EtudiantDB.id.in_(ids))
 
 
+def _classe(e) -> str:
+    """Classe d'un étudiant = son TD (BUT1-TD1 ; apprentis BUT3-TD2-APP -> BUT3-TD2),
+    sinon sa promo (BUT3), sinon « Sans groupe »."""
+    noms = sorted(cle_groupe(g.nom_groupe) for g in e.groupes)
+    td = [n for n in noms if re.fullmatch(r"BUT\d-TD\d+", n)]
+    return td[0] if td else (noms[0].split("-")[0] if noms else "Sans groupe")
+
+
 def _periode(du: str, au: str):
     """Période de suivi : par défaut depuis le 1er septembre jusqu'à aujourd'hui."""
     debut = lire_date(du, debut_annee_universitaire())
@@ -61,12 +70,18 @@ def liste_etudiants(request: Request, groupe: int = None, q: str = "", sans_cart
     if sans_carte:
         requete = requete.filter(~models.EtudiantDB.carte.has())
     etudiants = requete.order_by(models.EtudiantDB.nom, models.EtudiantDB.prenom).all()
+    # Rangés par classe (promo, puis TD, puis TP), puis par nom ; sans groupe à la fin
+    etudiants.sort(key=lambda e: (not e.groupes, ",".join(sorted(g.nom_groupe for g in e.groupes))))
+    # Un bloc repliable par classe (BUT1-TD1…) sur la page
+    classes = {}
+    for e in etudiants:
+        classes.setdefault(_classe(e), []).append(e)
     # Taux de présence de chacun depuis la rentrée (cours avec appel uniquement)
     debut, fin = _periode(None, None)
     bilans = {b["etudiant"].id: b for b in bilan_etudiants(db, etudiants, debut, fin)}
 
     return render(request, "etudiants/liste.html", actif="etudiants",
-                  etudiants=etudiants, bilans=bilans, groupes=groupes_par_promo(_groupes(db)),
+                  etudiants=etudiants, classes=classes, bilans=bilans, groupes=groupes_par_promo(_groupes(db)),
                   groupe_choisi=groupe, q=q, sans_carte=sans_carte,
                   total=db.query(models.EtudiantDB).count(),
                   total_sans_carte=db.query(models.EtudiantDB).filter(~models.EtudiantDB.carte.has()).count(),
