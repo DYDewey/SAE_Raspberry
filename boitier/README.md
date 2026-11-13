@@ -13,6 +13,7 @@ badge -> lecteur RC522 -> UID (hexa) -> SQLite locale (synced = 0) -> LED verte 
 ```
 
 * **Hors ligne d'abord :** le bip est enregistré en local avant tout envoi. Si le Wi-Fi ou le serveur tombe, les pointages attendent et partent au retour du réseau.
+* **Serveur retrouvé tout seul :** après 3 envois ratés d'affilée, le boîtier cherche le serveur sur son réseau local (port 8000, adresses .1 à .254) et ne garde que celui qui accepte son token. La nouvelle adresse est écrite dans le `.env` (`decouverte.py`).
 * **Heure :** chaque bip est horodaté en UTC grâce au module RTC DS3231, même sans réseau.
 * **Anti-rebond :** une carte enregistrée ne peut pas repasser avant 1 minute (`ANTI_REBOND_S`), même si d'autres cartes sont passées entre-temps. Si l'enregistrement a échoué (LED rouge), elle peut repasser tout de suite.
 * **Cartes :** seul l'identifiant (UID, 4 ou 7 octets) est lu, sans authentification ; fonctionne aussi avec les cartes protégées.
@@ -86,5 +87,6 @@ Les UID se tapent au clavier et les LED s'affichent dans la console.
 | `materiel.py` | lecteur NFC, LED, buzzer (+ versions simulées) |
 | `stockage.py` | base SQLite locale |
 | `synchro.py` | envoi au serveur, gestion du hors-ligne |
+| `decouverte.py` | recherche du serveur sur le réseau quand son adresse a changé |
 | `config.py` | paramètres (`.env`) et câblage |
 | `installer.sh`, `pointage-boitier.service` | installation et démarrage automatique |

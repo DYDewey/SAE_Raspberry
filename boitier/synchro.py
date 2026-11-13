@@ -6,13 +6,18 @@ En cas d'échec (réseau, serveur éteint, token refusé), on réessaie plus tar
 les pointages restent dans la base locale."""
 import logging
 import threading
+import time
 from datetime import datetime, timezone
 
 import requests
 
 import config
+import decouverte
 
 log = logging.getLogger("synchro")
+
+ECHECS_AVANT_RECHERCHE = 3     # envois ratés d'affilée avant de chercher le serveur sur le réseau
+PAUSE_RECHERCHE_S = 60         # au plus une recherche par minute
 
 
 class Synchro(threading.Thread):
@@ -26,6 +31,8 @@ class Synchro(threading.Thread):
         self.reveil = threading.Event()
         self.verrou = threading.Lock()       # un seul envoi à la fois (thread de fond ou boucle de lecture)
         self.uuids_enrolement = set()        # bips reçus par le serveur pendant un "Scanner la carte"
+        self.echecs = 0                      # envois ratés d'affilée (réseau)
+        self.derniere_recherche = -PAUSE_RECHERCHE_S
 
     def demander_envoi(self):
         """Envoi immédiat (appelé après chaque bip) au lieu d'attendre l'intervalle."""
@@ -99,7 +106,20 @@ class Synchro(threading.Thread):
         except requests.RequestException as e:
             log.debug("Envoi impossible : %s", e)
             self._changer_etat(False)
+            self.echecs += 1
+            # Serveur injoignable plusieurs fois de suite : son adresse a peut-être changé
+            if self.echecs >= ECHECS_AVANT_RECHERCHE and time.monotonic() - self.derniere_recherche > PAUSE_RECHERCHE_S:
+                self.derniere_recherche = time.monotonic()
+                url = decouverte.chercher_serveur()
+                if url and url != config.SERVEUR_URL:
+                    log.info("Serveur retrouvé : %s (au lieu de %s), adresse enregistrée dans le .env",
+                             url, config.SERVEUR_URL)
+                    config.SERVEUR_URL = url
+                    decouverte.memoriser(url)
+                    self.echecs = 0
+                    return self._poster(lot)
             return False
+        self.echecs = 0
 
         if r.status_code == 401:
             log.error("Token refusé par le serveur : vérifiez DEVICE_ID et API_TOKEN dans le .env "
