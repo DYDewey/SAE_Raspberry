@@ -43,6 +43,7 @@ def _charger_module_boitier(nom):
 
 
 stockage = _charger_module_boitier("stockage")
+sys.modules["decouverte"] = _charger_module_boitier("decouverte")  # importé par synchro.py
 synchro = _charger_module_boitier("synchro")
 
 # Lundi 12 octobre 2026, cours de 8h à 10h (heure de Paris = UTC+2 en octobre)

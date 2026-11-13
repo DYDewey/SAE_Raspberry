@@ -117,11 +117,14 @@
 
     // Émargement : le prof valide un étudiant à la main (menu sur le statut)
     document.addEventListener('click', async e => {
-        const bouton = e.target.closest('[data-manuel]');
+        const bouton = e.target.closest('[data-manuel], [data-tous-presents]');
         if (!bouton) return;
-        const corps = new URLSearchParams({etudiant: bouton.dataset.etudiant, statut: bouton.dataset.manuel});
+        const tous = bouton.dataset.tousPresents;
+        if (tous && !confirm("Marquer présents tous les étudiants qui n'ont pas badgé ?")) return;
+        const url = tous ? `/admin/seances/${tous}/tous-presents` : `/admin/seances/${bouton.dataset.seance}/manuel`;
+        const corps = tous ? null : new URLSearchParams({etudiant: bouton.dataset.etudiant, statut: bouton.dataset.manuel});
         try {
-            const r = await fetch(`/admin/seances/${bouton.dataset.seance}/manuel`, {method: 'POST', body: corps});
+            const r = await fetch(url, {method: 'POST', body: corps});
             if (r.status === 401) { window.location.href = '/login'; return; }
             if (!r.ok) throw new Error(r.status);
         } catch (err) {

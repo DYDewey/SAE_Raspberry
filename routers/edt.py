@@ -276,6 +276,25 @@ def statut_manuel(seance_id: int, request: Request, etudiant: int = Form(...), s
     return Response(status_code=204)
 
 
+@router.post("/seances/{seance_id}/tous-presents")
+def tous_presents(seance_id: int, request: Request, db: Session = Depends(get_db)):
+    """Appel rapide (boîtier en panne, oublié...) : tous les étudiants sans bip ni correction
+    passent « Présent » à la main ; le prof marque ensuite les vrais absents un par un."""
+    seance = db.get(models.SeanceDB, seance_id)
+    if not seance:
+        raise HTTPException(status_code=404, detail="Cours introuvable")
+    if prof_connecte(request) is not None and seance.id_prof != prof_connecte(request):
+        raise PasAutorise()
+    bloc = bloc_de_seance(db, seance)
+    liste, _, _ = presences_bloc(db, bloc)
+    for p in liste:
+        if p["statut"] == ABSENT and not p["manuel"]:
+            db.add(models.PresenceManuelleDB(id_seance=bloc.id, id_etudiant=p["etudiant"].id,
+                                             statut=PRESENT, modifie_le=maintenant_paris()))
+    db.commit()
+    return Response(status_code=204)
+
+
 @router.get("/seances/{seance_id}/export")
 def export_emargement(seance_id: int, request: Request, db: Session = Depends(get_db)):
     ctx = _contexte_emargement(db, seance_id, prof_connecte(request))

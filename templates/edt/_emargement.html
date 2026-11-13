@@ -40,6 +40,10 @@
         {% if panneau %}
         <a class="btn btn-sm btn-outline-secondary text-nowrap" href="/admin/seances/{{ bloc.id }}{% if avec %}?avec={{ avec }}{% endif %}" title="Ouvrir en pleine page"><i class="bi bi-arrows-fullscreen"></i></a>
         {% endif %}
+        {% if etat != "a_venir" and compteur["Absent"] %}
+        <button type="button" class="btn btn-sm btn-outline-success text-nowrap" data-tous-presents="{{ bloc.id }}"
+                title="Les étudiants sans badge passent Présent ; corrigez ensuite les absents"><i class="bi bi-check2-all me-1"></i>Tous présents</button>
+        {% endif %}
         <a class="btn btn-sm btn-success text-nowrap" href="/admin/seances/{{ bloc.id }}/export"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
     </div>
 
